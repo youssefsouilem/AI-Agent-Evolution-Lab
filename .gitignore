@@ -1,0 +1,48 @@
+# Java / Maven
+target/
+*.class
+*.jar
+*.log
+HELP.md
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# Node / React
+node_modules/
+build/
+dist/
+.vite/
+
+# Python (if FastAPI/LangGraph/Optuna/scikit-learn)
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.joblib
+
+# Secrets and environment
+.env
+*.env.local
+application-local.yml
+application-local.properties
+*.pem
+*.key
+
+# Databases (H2 file mode, local data)
+*.mv.db
+*.trace.db
+data/
+mongo-data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker overrides
+docker-compose.override.yml
