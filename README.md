@@ -47,7 +47,7 @@ and supervise AI agents.
 ## Team & responsibilities
  
 | Member | Service | Responsibility |
-|---|---|---|---|
+|---|---|---|
 | Ouday Chebbi | M1: Agents | Create, configure, version and run agents | 
 | Anaghim Dareaoui | M2: MCP & Security | Tools, permissions, access control and refusals |
 | Souleima Belghith | M3: Missions | Missions, AI Router, LangGraph orchestration, final decision |
