@@ -46,15 +46,15 @@ and supervise AI agents.
 
 ## Team & responsibilities
  
-| Member | Service | Responsibility | GitHub |
+| Member | Service | Responsibility |
 |---|---|---|---|
-| Ouday Chebbi | M1: Agents | Create, configure, version and run agents | @github-user-1 |
-| Anaghim Dareaoui | M2: MCP & Security | Tools, permissions, access control and refusals | @github-user-2 |
-| Souleima Belghith | M3: Missions | Missions, AI Router, LangGraph orchestration, final decision | @github-user-3 |
-| Maram Ben Rhim | M4: Benchmark & Safety | Test sets, evaluation runs, reproducible scores | @github-user-4 |
-| Roua Ouerfelli | M5: Optuna Optimization | Candidate configurations, studies, trials, best configuration | @github-user-5 |
-| Youssef Souilem | M6: Anomaly Detection | Execution metrics analysis, severity, pre-answer diagnostic | @github-user-6 |
-| Common (owner: [name]) | M7: Event Logging | RabbitMQ consumer, MongoDB storage, event history | @github-owner |
+| Ouday Chebbi | M1: Agents | Create, configure, version and run agents | 
+| Anaghim Dareaoui | M2: MCP & Security | Tools, permissions, access control and refusals |
+| Souleima Belghith | M3: Missions | Missions, AI Router, LangGraph orchestration, final decision |
+| Maram Ben Rhim | M4: Benchmark & Safety | Test sets, evaluation runs, reproducible scores |
+| Roua Ouerfelli | M5: Optuna Optimization | Candidate configurations, studies, trials, best configuration |
+| Youssef Souilem | M6: Anomaly Detection | Execution metrics analysis, severity, pre-answer diagnostic |
+| Common (owner: [name]) | M7: Event Logging | RabbitMQ consumer, MongoDB storage, event history | 
  
 ## Services, ports and databases
 | Service | Port | Database | Main data |
