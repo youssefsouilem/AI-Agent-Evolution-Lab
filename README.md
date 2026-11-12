@@ -166,6 +166,11 @@ ai-agent-evolution-lab/
 │   ├── m6-anomaly-service/
 │   └── m7-event-logging-service/
 ├── Frontend/
+└── Documentation/
+│   ├── Presentation/
+│   ├── Diagrams/
+│   ├── api-contracts.md
+│   └── events-contract.md
 ├── .github/                  (PR template, issue templates, CODEOWNERS)
 ├── docker-compose.yml
 ├── .env.example
