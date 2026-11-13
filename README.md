@@ -19,7 +19,7 @@ and supervise AI agents.
 
 ## Architecture
  
-![Architecture](Documentation/Diagrams/architecture.png)
+![Architecture](Documentation/Diagrams/architecture global.png)
  
 **Stack:** Spring Boot microservices · React · REST / OpenFeign · RabbitMQ · Keycloak · Eureka · Config Server · API Gateway · Docker Compose
  
