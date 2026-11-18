@@ -9,7 +9,6 @@ import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.Authentication;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -69,9 +68,8 @@ public class AgentExecutionService {
         this.eventPublisher = eventPublisher;
     }
 
-    public ExecuteResponse execute(Long agentId, ExecuteRequest request, Authentication authentication) {
-        var agent = agentService.requireAgent(agentId);
-        agentService.assertCanManage(agent, authentication);
+    public ExecuteResponse execute(Long agentId, ExecuteRequest request, String ownerId) {
+        agentService.loadOwnedAgent(agentId, ownerId);
 
         AgentVersion version = request.versionId() == null
                 ? versionRepository.findFirstByAgentIdAndActiveTrue(agentId)
@@ -155,20 +153,39 @@ public class AgentExecutionService {
                 .map(callback -> limitTurns(callback, configuration.getMaxTurns(), turns))
                 .toList();
 
+        var options = OpenAiChatOptions.builder()
+                .model(version.getModel())
+                .temperature(configuration.getTemperature())
+                .timeout(Duration.ofSeconds(configuration.getTimeoutSeconds()));
+        if (configuration.getMaxTokens() != null) {
+            options.maxTokens(configuration.getMaxTokens());
+        }
+
         ChatClient.ChatClientRequestSpec prompt = chatClientBuilder.build()
                 .prompt()
-                .system(version.getSystemPrompt())
+                .system(systemPrompt(version.getSystemPrompt(), configuration.getStyle()))
                 .user(buildUserPrompt(request))
-                .options(OpenAiChatOptions.builder()
-                        .model(version.getModel())
-                        .temperature(configuration.getTemperature())
-                        .timeout(Duration.ofSeconds(configuration.getTimeoutSeconds())));
+                .options(options);
         if (!limitedCallbacks.isEmpty()) {
             prompt.toolCallbacks(limitedCallbacks);
         }
 
         // TODO: Replace the OpenAI-specific options when the production LLM provider is finalized.
         return prompt.call().chatResponse();
+    }
+
+    private String systemPrompt(String systemPrompt, String style) {
+        String instruction = switch (style == null ? "" : style) {
+            case "concise" -> "Réponds de manière concise.";
+            case "detaille" -> "Réponds de manière détaillée et structurée.";
+            default -> null;
+        };
+        if (instruction == null) {
+            return systemPrompt;
+        }
+        return systemPrompt == null || systemPrompt.isBlank()
+                ? instruction
+                : systemPrompt + "\n" + instruction;
     }
 
     private List<ToolCallback> getAllowedCallbacks(

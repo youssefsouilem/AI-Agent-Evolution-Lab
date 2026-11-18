@@ -19,6 +19,9 @@ public class AgentVersionMapper {
                 version.getModel(),
                 version.getSystemPrompt(),
                 version.getChangeLog(),
+                version.getSource() == null ? "USER" : version.getSource(),
+                version.getStudyId(),
+                "Version " + version.getVersionNumber() + (version.isActive() ? " (active)" : ""),
                 version.isActive(),
                 version.getCreatedAt(),
                 toDto(version.getConfiguration())
@@ -28,9 +31,27 @@ public class AgentVersionMapper {
     public AgentConfiguration toEntity(ConfigurationDto configuration) {
         return AgentConfiguration.builder()
                 .temperature(configuration.temperature())
+                .maxTokens(configuration.maxTokens())
+                .style(configuration.style())
                 .maxTurns(configuration.maxTurns())
                 .timeoutSeconds(configuration.timeoutSeconds())
                 .allowedToolIds(new ArrayList<>(configuration.allowedToolIds()))
+                .build();
+    }
+
+    public AgentConfiguration copyConfiguration(AgentConfiguration configuration) {
+        if (configuration == null) {
+            return null;
+        }
+        return AgentConfiguration.builder()
+                .temperature(configuration.getTemperature())
+                .maxTokens(configuration.getMaxTokens())
+                .style(configuration.getStyle())
+                .maxTurns(configuration.getMaxTurns())
+                .timeoutSeconds(configuration.getTimeoutSeconds())
+                .allowedToolIds(configuration.getAllowedToolIds() == null
+                        ? new ArrayList<>()
+                        : new ArrayList<>(configuration.getAllowedToolIds()))
                 .build();
     }
 
@@ -40,6 +61,8 @@ public class AgentVersionMapper {
         }
         return new ConfigurationDto(
                 configuration.getTemperature(),
+                configuration.getMaxTokens(),
+                configuration.getStyle(),
                 configuration.getMaxTurns(),
                 configuration.getTimeoutSeconds(),
                 new ArrayList<>(configuration.getAllowedToolIds())

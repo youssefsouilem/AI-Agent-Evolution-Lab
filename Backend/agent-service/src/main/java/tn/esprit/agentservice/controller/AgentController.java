@@ -1,12 +1,8 @@
 package tn.esprit.agentservice.controller;
 
 import jakarta.validation.Valid;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -15,6 +11,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import tn.esprit.agentservice.config.CurrentUser;
 import tn.esprit.agentservice.dto.AgentRequest;
 import tn.esprit.agentservice.dto.AgentResponse;
 import tn.esprit.agentservice.dto.ExecuteRequest;
@@ -23,6 +20,7 @@ import tn.esprit.agentservice.service.AgentExecutionService;
 import tn.esprit.agentservice.service.AgentService;
 
 import java.net.URI;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/agents")
@@ -39,20 +37,20 @@ public class AgentController {
     @PostMapping
     public ResponseEntity<AgentResponse> create(
             @Valid @RequestBody AgentRequest request,
-            @AuthenticationPrincipal Jwt jwt
+            Authentication authentication
     ) {
-        AgentResponse response = agentService.create(request, jwt.getSubject());
+        AgentResponse response = agentService.create(request, CurrentUser.from(authentication).id());
         return ResponseEntity.created(URI.create("/api/agents/" + response.id())).body(response);
     }
 
     @GetMapping
-    public Page<AgentResponse> list(Pageable pageable) {
-        return agentService.list(pageable);
+    public List<AgentResponse> list(Authentication authentication) {
+        return agentService.list(CurrentUser.from(authentication).id());
     }
 
     @GetMapping("/{id}")
-    public AgentResponse get(@PathVariable Long id) {
-        return agentService.get(id);
+    public AgentResponse get(@PathVariable Long id, Authentication authentication) {
+        return agentService.get(id, CurrentUser.from(authentication).id());
     }
 
     @PutMapping("/{id}")
@@ -61,12 +59,12 @@ public class AgentController {
             @Valid @RequestBody AgentRequest request,
             Authentication authentication
     ) {
-        return agentService.update(id, request, authentication);
+        return agentService.update(id, request, CurrentUser.from(authentication).id());
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id, Authentication authentication) {
-        agentService.delete(id, authentication);
+        agentService.delete(id, CurrentUser.from(authentication).id());
         return ResponseEntity.noContent().build();
     }
 
@@ -76,6 +74,6 @@ public class AgentController {
             @Valid @RequestBody ExecuteRequest request,
             Authentication authentication
     ) {
-        return executionService.execute(id, request, authentication);
+        return executionService.execute(id, request, CurrentUser.from(authentication).id());
     }
 }

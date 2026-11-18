@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.PostLoad;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
@@ -51,6 +52,13 @@ public class AgentVersion {
 
     private String changeLog;
 
+    @Builder.Default
+    @Column(nullable = true)
+    private String source = "USER";
+
+    @Column(nullable = true)
+    private Long studyId;
+
     private boolean active;
 
     private LocalDateTime createdAt;
@@ -63,6 +71,16 @@ public class AgentVersion {
     protected void onCreate() {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
+        }
+        if (source == null) {
+            source = "USER";
+        }
+    }
+
+    @PostLoad
+    protected void applyDefaults() {
+        if (source == null) {
+            source = "USER";
         }
     }
 }

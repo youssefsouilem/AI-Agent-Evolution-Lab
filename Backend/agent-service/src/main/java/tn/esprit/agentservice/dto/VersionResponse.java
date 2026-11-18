@@ -9,6 +9,9 @@ public record VersionResponse(
         String model,
         String systemPrompt,
         String changeLog,
+        String source,
+        Long studyId,
+        String label,
         boolean active,
         LocalDateTime createdAt,
         ConfigurationDto configuration

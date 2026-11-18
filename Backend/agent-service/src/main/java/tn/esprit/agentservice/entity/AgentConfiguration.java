@@ -34,6 +34,12 @@ public class AgentConfiguration {
 
     private double temperature;
 
+    @Column(nullable = true)
+    private Integer maxTokens;
+
+    @Column(nullable = true)
+    private String style;
+
     private int maxTurns;
 
     private int timeoutSeconds;

@@ -11,7 +11,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import tn.esprit.agentservice.config.CurrentUser;
 import tn.esprit.agentservice.dto.ConfigurationDto;
+import tn.esprit.agentservice.dto.TunableParameterDto;
 import tn.esprit.agentservice.dto.VersionRequest;
 import tn.esprit.agentservice.dto.VersionResponse;
 import tn.esprit.agentservice.service.AgentVersionService;
@@ -35,17 +37,30 @@ public class AgentVersionController {
             @Valid @RequestBody VersionRequest request,
             Authentication authentication
     ) {
-        return versionService.create(id, request, authentication);
+        return versionService.create(id, request, CurrentUser.from(authentication).id());
     }
 
     @GetMapping
-    public List<VersionResponse> list(@PathVariable Long id) {
-        return versionService.list(id);
+    public List<VersionResponse> list(@PathVariable Long id, Authentication authentication) {
+        return versionService.list(id, CurrentUser.from(authentication).id());
     }
 
     @GetMapping("/{vid}")
-    public VersionResponse get(@PathVariable Long id, @PathVariable Long vid) {
-        return versionService.get(id, vid);
+    public VersionResponse get(
+            @PathVariable Long id,
+            @PathVariable Long vid,
+            Authentication authentication
+    ) {
+        return versionService.get(id, vid, CurrentUser.from(authentication).id());
+    }
+
+    @GetMapping("/{vid}/tunable-parameters")
+    public List<TunableParameterDto> tunableParameters(
+            @PathVariable Long id,
+            @PathVariable Long vid,
+            Authentication authentication
+    ) {
+        return versionService.tunableParameters(id, vid, CurrentUser.from(authentication).id());
     }
 
     @PutMapping("/{vid}/activate")
@@ -54,7 +69,7 @@ public class AgentVersionController {
             @PathVariable Long vid,
             Authentication authentication
     ) {
-        return versionService.activate(id, vid, authentication);
+        return versionService.activate(id, vid, CurrentUser.from(authentication).id());
     }
 
     @PutMapping("/{vid}/configuration")
@@ -64,6 +79,6 @@ public class AgentVersionController {
             @RequestBody ConfigurationDto configuration,
             Authentication authentication
     ) {
-        return versionService.updateConfiguration(id, vid, configuration, authentication);
+        return versionService.updateConfiguration(id, vid, configuration, CurrentUser.from(authentication).id());
     }
 }
