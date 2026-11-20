@@ -1,0 +1,32 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.3
+    command: ["start-dev", "--import-realm"]
+    ports:
+      - "8180:8080"
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin-change-me
+    volumes:
+      - ./keycloak/realm-ai-lab.json:/opt/keycloak/data/import/realm-ai-lab.json:ro
+
+  agent-service:
+    build:
+      context: ../Backend/m1-agent-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-missing-key}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI:-http://keycloak:8080/realms/ai-lab}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-host.docker.internal}
+      TOOLS_SERVICE_URL: ${TOOLS_SERVICE_URL:-http://host.docker.internal:8082}
+      EUREKA_ENABLED: ${EUREKA_ENABLED:-false}
+      M1_DEMO_SEED: ${M1_DEMO_SEED:-false}
+    volumes:
+      - agent-data:/app/data
+    depends_on:
+      - keycloak
+
+volumes:
+  agent-data:

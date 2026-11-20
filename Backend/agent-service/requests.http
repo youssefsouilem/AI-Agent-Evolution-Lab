@@ -1,0 +1,40 @@
+@baseUrl = http://localhost:8081
+@agentId = 12
+@basedOnVersionId = 3
+@versionId = 4
+@token = replace-with-a-Keycloak-JWT
+
+### M5 flow: list the current user's agents
+GET {{baseUrl}}/api/agents
+Authorization: Bearer {{token}}
+
+### M5 flow: list versions for an owned agent
+GET {{baseUrl}}/api/agents/{{agentId}}/versions
+Authorization: Bearer {{token}}
+
+### M5 flow: read tunable parameters for the base version
+GET {{baseUrl}}/api/agents/{{agentId}}/versions/{{basedOnVersionId}}/tunable-parameters
+Authorization: Bearer {{token}}
+
+### M5 flow: create an inactive optimized version
+POST {{baseUrl}}/api/agents/{{agentId}}/versions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "basedOnVersionId": {{basedOnVersionId}},
+  "source": "M5",
+  "studyId": 4,
+  "params": {
+    "temperature": 0.3,
+    "maxTokens": 1024,
+    "style": "concise"
+  }
+}
+
+### M5 flow: activate the created version
+PUT {{baseUrl}}/api/agents/{{agentId}}/versions/{{versionId}}/activate
+Authorization: Bearer {{token}}
+
+### M5 flow: check service health (no token required)
+GET {{baseUrl}}/actuator/health

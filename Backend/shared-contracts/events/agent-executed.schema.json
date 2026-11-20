@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGENT_EXECUTED",
+  "type": "object",
+  "required": ["eventId", "eventType", "producer", "occurredAt", "agentId", "agentVersionId", "executionId", "status", "durationMs", "toolCallCount"],
+  "properties": {
+    "eventId": { "type": "string", "format": "uuid" },
+    "eventType": { "const": "AGENT_EXECUTED" },
+    "producer": { "const": "agent-service" },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "agentId": { "type": "integer" },
+    "agentVersionId": { "type": "integer" },
+    "executionId": { "type": "integer" },
+    "status": { "const": "COMPLETED" },
+    "durationMs": { "type": "integer", "minimum": 0 },
+    "promptTokens": { "type": ["integer", "null"] },
+    "completionTokens": { "type": ["integer", "null"] },
+    "totalTokens": { "type": ["integer", "null"] },
+    "toolCallCount": { "type": "integer", "minimum": 0 },
+    "errorCode": { "type": ["string", "null"] },
+    "event": { "type": "string" },
+    "source": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}
