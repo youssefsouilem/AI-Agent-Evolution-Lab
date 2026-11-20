@@ -10,6 +10,15 @@ export default defineConfig({
         target: 'http://localhost:8081',
         changeOrigin: true,
       },
+      '/api/executions': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+      },
+      '/m1-health': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/m1-health/, '/actuator/health'),
+      },
       '/api': {
         target: 'http://localhost:8086',
         changeOrigin: true,

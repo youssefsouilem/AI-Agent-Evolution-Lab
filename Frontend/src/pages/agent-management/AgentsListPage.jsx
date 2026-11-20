@@ -1,39 +1,64 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { listAgents, deleteAgent, updateAgent } from '../../services/agentApi'
-import { PageHeader, Stats, ErrorBanner, EmptyState, Loading, AgentCard, ConfirmDialog, SearchInput } from '../../components/agent-management/ui'
+import { useAuth } from '../../components/common/AuthContext'
+import {
+  PageHeader,
+  Stats,
+  ErrorBanner,
+  EmptyState,
+  Loading,
+  AgentCard,
+  ConfirmDialog,
+  SearchInput,
+  CreateCard,
+} from '../../components/agent-management/ui'
 import '../../components/agent-management/agent-management.css'
 
 export default function AgentsListPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const { isAdmin } = useAuth()
+
   const [agents, setAgents] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [showAllUsers, setShowAllUsers] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [archiveConfirm, setArchiveConfirm] = useState(null)
+  const [flashMessage, setFlashMessage] = useState(location.state?.flashMessage || null)
 
   const loadAgents = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await listAgents()
-      setAgents(data)
+      const data = await listAgents({ all: isAdmin && showAllUsers })
+      setAgents(Array.isArray(data) ? data : [])
       setError(null)
     } catch (e) {
       setError(e)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [isAdmin, showAllUsers])
 
-  useEffect(() => { loadAgents() }, [loadAgents])
+  useEffect(() => {
+    loadAgents()
+  }, [loadAgents])
+
+  useEffect(() => {
+    if (location.state?.flashMessage) {
+      setFlashMessage(location.state.flashMessage)
+      window.history.replaceState({}, document.title)
+    }
+  }, [location.state])
 
   const handleDelete = async () => {
     if (!deleteConfirm) return
     try {
       await deleteAgent(deleteConfirm.id)
-      setAgents(agents.filter(a => a.id !== deleteConfirm.id))
+      setAgents((prev) => prev.filter((a) => a.id !== deleteConfirm.id))
       setDeleteConfirm(null)
     } catch (e) {
       setError(e)
@@ -43,71 +68,131 @@ export default function AgentsListPage() {
   const handleArchive = async () => {
     if (!archiveConfirm) return
     try {
-      await updateAgent(archiveConfirm.id, { status: 'ARCHIVED' })
-      setAgents(agents.map(a => a.id === archiveConfirm.id ? { ...a, status: 'ARCHIVED' } : a))
+      await updateAgent(archiveConfirm.id, {
+        name: archiveConfirm.name,
+        description: archiveConfirm.description,
+        status: 'ARCHIVED',
+      })
+      setAgents((prev) =>
+        prev.map((a) => (a.id === archiveConfirm.id ? { ...a, status: 'ARCHIVED' } : a))
+      )
       setArchiveConfirm(null)
     } catch (e) {
       setError(e)
     }
   }
 
-  const filteredAgents = agents.filter(agent => {
-    const matchesSearch = agent.name.toLowerCase().includes(search.toLowerCase()) ||
-                         (agent.description || '').toLowerCase().includes(search.toLowerCase())
+  const filteredAgents = agents.filter((agent) => {
+    const q = search.toLowerCase()
+    const matchesSearch =
+      (agent.name || '').toLowerCase().includes(q) ||
+      (agent.description || '').toLowerCase().includes(q)
     const matchesStatus = !statusFilter || agent.status === statusFilter
     return matchesSearch && matchesStatus
   })
 
   const total = agents.length
-  const active = agents.filter(a => a.status === 'ACTIVE').length
-  const drafts = agents.filter(a => a.status === 'DRAFT').length
-
-  if (loading) return <div><PageHeader crumb="Mes agents" title="Mes agents" subtitle="Créez, configurez et versionnez vos agents IA." action="+ Créer un agent" onAction={() => navigate('/agents/new')} /><Loading /></div>
+  const active = agents.filter((a) => a.status === 'ACTIVE').length
+  const drafts = agents.filter((a) => a.status === 'DRAFT').length
 
   return (
     <div>
-      <PageHeader crumb="Mes agents" title="Mes agents" subtitle="Créez, configurez et versionnez vos agents IA." action="+ Créer un agent" onAction={() => navigate('/agents/new')} />
+      <PageHeader
+        crumb="Mes agents"
+        title="Mes agents"
+        subtitle="Créez, configurez et versionnez vos agents IA."
+        action="Créer un agent"
+        onAction={() => navigate('/agents/new')}
+      />
+
+      {flashMessage && (
+        <div className="m1-warning" style={{ marginBottom: 20 }}>
+          <span>{flashMessage}</span>
+          <button
+            type="button"
+            className="m1-ghost-sm"
+            style={{ marginLeft: 'auto' }}
+            onClick={() => setFlashMessage(null)}
+          >
+            Fermer
+          </button>
+        </div>
+      )}
+
       {error && <ErrorBanner error={error} retry={loadAgents} />}
-      
-      <Stats items={[
-        { label: 'Total des agents', value: total, caption: 'Tous vos agents' },
-        { label: 'Agents actifs', value: active, caption: 'Prêts à être exécutés' },
-        { label: 'Brouillons', value: drafts, caption: 'En cours de configuration' },
-      ]} />
+
+      <Stats
+        items={[
+          { label: 'Total des agents', value: total, caption: 'Tous vos agents' },
+          { label: 'Agents actifs', value: active, caption: 'Prêts à être exécutés' },
+          { label: 'Brouillons', value: drafts, caption: 'En cours de configuration' },
+        ]}
+      />
 
       <div className="m1-filters">
         <SearchInput value={search} onChange={setSearch} placeholder="Rechercher un agent…" />
-        <select className="m1-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+
+        <select
+          className="m1-select"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          aria-label="Filtrer par statut"
+        >
           <option value="">Tous les statuts</option>
           <option value="DRAFT">Brouillon</option>
           <option value="ACTIVE">Actif</option>
           <option value="ARCHIVED">Archivé</option>
         </select>
+
+        {isAdmin && (
+          <label className="m1-admin-toggle">
+            <input
+              type="checkbox"
+              checked={showAllUsers}
+              onChange={(e) => setShowAllUsers(e.target.checked)}
+            />
+            <span>Tous les utilisateurs (Admin)</span>
+          </label>
+        )}
+
         <span className="m1-counter">{filteredAgents.length} agent(s)</span>
       </div>
 
-      <div className="m1-card-grid">
-        <button className="m1-create-card" onClick={() => navigate('/agents/new')}>
-          <span>+</span>
-          <strong>Créer un agent</strong>
-          <small>À partir de zéro</small>
-        </button>
-        {filteredAgents.map(agent => (
-          <AgentCard
-            key={agent.id}
-            agent={agent}
-            onEdit={(a) => navigate(`/agents/${a.id}`)}
-            onArchive={setArchiveConfirm}
-            onDelete={setDeleteConfirm}
-          />
-        ))}
-      </div>
+      {loading ? (
+        <Loading label="Chargement des agents..." />
+      ) : (
+        <>
+          <div className="m1-card-grid">
+            <CreateCard label="Créer un agent" onClick={() => navigate('/agents/new')} />
 
-      {filteredAgents.length === 0 && !loading && <EmptyState text="Aucun agent trouvé." />}
+            {filteredAgents.map((agent) => (
+              <AgentCard
+                key={agent.id}
+                agent={agent}
+                isAdmin={isAdmin}
+                onEdit={(a) => navigate(`/agents/${a.id}`)}
+                onArchive={setArchiveConfirm}
+                onDelete={setDeleteConfirm}
+              />
+            ))}
+          </div>
+
+          {filteredAgents.length === 0 && (
+            <div style={{ marginTop: 20 }}>
+              <EmptyState
+                text="Aucun agent trouvé."
+                subtext="Créez votre premier agent ou ajustez vos critères de recherche."
+              />
+            </div>
+          )}
+        </>
+      )}
 
       {deleteConfirm && (
         <ConfirmDialog
           title={`Supprimer l'agent "${deleteConfirm.name}" ?`}
+          message="Cette action est irréversible et supprimera également toutes ses versions et son historique."
+          confirmLabel="Supprimer"
           onCancel={() => setDeleteConfirm(null)}
           onConfirm={handleDelete}
         />
@@ -116,6 +201,9 @@ export default function AgentsListPage() {
       {archiveConfirm && (
         <ConfirmDialog
           title={`Archiver l'agent "${archiveConfirm.name}" ?`}
+          message="L'agent sera désactivé mais restera consultable dans la liste."
+          confirmLabel="Archiver"
+          variant="primary"
           onCancel={() => setArchiveConfirm(null)}
           onConfirm={handleArchive}
         />
