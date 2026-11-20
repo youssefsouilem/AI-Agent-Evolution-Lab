@@ -1,0 +1,48 @@
+{
+  "realm": "ai-lab",
+  "enabled": true,
+  "displayName": "AI Agent Evolution Lab",
+  "roles": {
+    "realm": [
+      { "name": "user", "description": "Standard user" },
+      { "name": "admin", "description": "Service administrator" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "ai-lab-frontend",
+      "name": "AI Lab Frontend",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "protocol": "openid-connect",
+      "redirectUris": ["http://localhost:5173/*"],
+      "webOrigins": ["http://localhost:5173"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5173/*"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Demo",
+      "credentials": [{ "type": "password", "value": "alice-temp-change-me", "temporary": true }],
+      "realmRoles": ["user"]
+    },
+    {
+      "username": "root",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Root",
+      "lastName": "Admin",
+      "credentials": [{ "type": "password", "value": "root-temp-change-me", "temporary": true }],
+      "realmRoles": ["user", "admin"]
+    }
+  ]
+}

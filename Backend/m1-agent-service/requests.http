@@ -1,0 +1,84 @@
+@baseUrl = http://localhost:8081
+@agentId = 12
+@basedOnVersionId = 3
+@versionId = 4
+@executionId = 1
+@outboxEventId = replace-with-outbox-uuid
+@token = replace-with-a-Keycloak-JWT
+
+### M5 flow: list the current user's agents
+GET {{baseUrl}}/api/agents
+Authorization: Bearer {{token}}
+
+### M5 flow: list versions for an owned agent
+GET {{baseUrl}}/api/agents/{{agentId}}/versions
+Authorization: Bearer {{token}}
+
+### M5 flow: read tunable parameters for the base version
+GET {{baseUrl}}/api/agents/{{agentId}}/versions/{{basedOnVersionId}}/tunable-parameters
+Authorization: Bearer {{token}}
+
+### M5 flow: create an inactive optimized version
+POST {{baseUrl}}/api/agents/{{agentId}}/versions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "basedOnVersionId": {{basedOnVersionId}},
+  "source": "M5",
+  "studyId": 4,
+  "params": {
+    "temperature": 0.3,
+    "maxTokens": 1024,
+    "style": "concise"
+  }
+}
+
+### M5 flow: activate the created version
+PUT {{baseUrl}}/api/agents/{{agentId}}/versions/{{versionId}}/activate
+Authorization: Bearer {{token}}
+
+### M5 flow: check service health (no token required)
+GET {{baseUrl}}/actuator/health
+
+### Execute with per-run temporary settings
+POST {{baseUrl}}/api/agents/{{agentId}}/execute
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "versionId": {{versionId}},
+  "input": "Analyse les données de vente.",
+  "context": "mission=5; étape=2",
+  "overrides": {
+    "temperature": 0.1
+  }
+}
+
+### Failing execution example: unavailable provider or archived agent
+POST {{baseUrl}}/api/agents/{{agentId}}/execute
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "versionId": {{versionId}},
+  "input": "Réponds par le mot OK."
+}
+
+### History list for one agent
+GET {{baseUrl}}/api/agents/{{agentId}}/executions?status=COMPLETED&page=0&size=20
+Authorization: Bearer {{token}}
+
+### History detail
+GET {{baseUrl}}/api/agents/{{agentId}}/executions/{{executionId}}
+Authorization: Bearer {{token}}
+
+### Executions across the caller's agents
+GET {{baseUrl}}/api/executions?page=0&size=20
+
+### Admin: inspect outbox counts and latest failures
+GET {{baseUrl}}/api/admin/outbox
+
+### Admin: retry one failed event
+POST {{baseUrl}}/api/admin/outbox/{{outboxEventId}}/retry
+Authorization: Bearer {{token}}
