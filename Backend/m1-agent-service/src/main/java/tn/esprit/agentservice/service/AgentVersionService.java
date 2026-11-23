@@ -18,6 +18,7 @@ import tn.esprit.agentservice.exception.AgentVersionNotFoundException;
 import tn.esprit.agentservice.exception.InvalidConfigurationException;
 import tn.esprit.agentservice.mapper.AgentVersionMapper;
 import tn.esprit.agentservice.repository.AgentVersionRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,8 @@ public class AgentVersionService {
     private final TunableParameterCatalog parameterCatalog;
     private final AgentEventPublisher eventPublisher;
     private final Validator validator;
+    private final AgentAccessPolicy accessPolicy;
+    private final ModelCatalogService modelCatalog;
 
     public AgentVersionService(
             AgentService agentService,
@@ -42,30 +45,52 @@ public class AgentVersionService {
             AgentEventPublisher eventPublisher,
             Validator validator
     ) {
+        this(agentService, versionRepository, versionMapper, parameterCatalog, eventPublisher, validator,
+                new AgentAccessPolicy(), null);
+    }
+
+    @Autowired
+    public AgentVersionService(
+            AgentService agentService,
+            AgentVersionRepository versionRepository,
+            AgentVersionMapper versionMapper,
+            TunableParameterCatalog parameterCatalog,
+            AgentEventPublisher eventPublisher,
+            Validator validator,
+            AgentAccessPolicy accessPolicy,
+            ModelCatalogService modelCatalog
+    ) {
         this.agentService = agentService;
         this.versionRepository = versionRepository;
         this.versionMapper = versionMapper;
         this.parameterCatalog = parameterCatalog;
         this.eventPublisher = eventPublisher;
         this.validator = validator;
+        this.accessPolicy = accessPolicy;
+        this.modelCatalog = modelCatalog;
     }
 
     public VersionResponse create(Long agentId, VersionRequest request, String ownerId) {
-        return createVersion(agentService.loadOwnedAgentForUpdate(agentId, ownerId), request);
+        return create(agentId, request, new CurrentUser(ownerId, false));
     }
 
     public VersionResponse create(Long agentId, VersionRequest request, CurrentUser user) {
-        return createVersion(agentService.loadOwnedAgentForUpdate(agentId, user), request);
+        Agent agent = agentService.loadOwnedAgentForUpdate(agentId, user);
+        accessPolicy.requireWrite(agent, user);
+        return createVersion(agent, request, user);
     }
 
-    private VersionResponse createVersion(Agent agent, VersionRequest request) {
+    private VersionResponse createVersion(Agent agent, VersionRequest request, CurrentUser actor) {
         Long agentId = agent.getId();
         int nextVersion = versionRepository.findMaxVersionNumberByAgentId(agentId).orElse(0) + 1;
         AgentVersion version = request.basedOnVersionId() == null
                 ? createUiVersion(agent, request, nextVersion)
                 : createM5Version(agent, request, nextVersion);
+        if (modelCatalog != null && modelCatalog.strictModelCheck()) {
+            modelCatalog.requireAvailable(version.getModel());
+        }
         AgentVersion savedVersion = versionRepository.save(version);
-        publishUpdatedEvent(agentId, savedVersion.getId());
+        publishUpdatedEvent(agentId, savedVersion.getId(), actor);
         return versionMapper.toResponse(savedVersion);
     }
 
@@ -76,7 +101,8 @@ public class AgentVersionService {
 
     @Transactional(readOnly = true)
     public List<VersionResponse> list(Long agentId, CurrentUser user) {
-        agentService.loadOwnedAgent(agentId, user);
+        Agent agent = agentService.loadOwnedAgent(agentId, user);
+        accessPolicy.requireRead(agent, user);
         return versionRepository.findByAgentId(agentId).stream()
                 .map(versionMapper::toResponse)
                 .toList();
@@ -89,7 +115,8 @@ public class AgentVersionService {
 
     @Transactional(readOnly = true)
     public VersionResponse get(Long agentId, Long versionId, CurrentUser user) {
-        agentService.loadOwnedAgent(agentId, user);
+        Agent agent = agentService.loadOwnedAgent(agentId, user);
+        accessPolicy.requireRead(agent, user);
         return versionMapper.toResponse(requireVersion(agentId, versionId));
     }
 
@@ -100,7 +127,8 @@ public class AgentVersionService {
 
     @Transactional(readOnly = true)
     public List<TunableParameterDto> tunableParameters(Long agentId, Long versionId, CurrentUser user) {
-        agentService.loadOwnedAgent(agentId, user);
+        Agent agent = agentService.loadOwnedAgent(agentId, user);
+        accessPolicy.requireRead(agent, user);
         AgentVersion version = requireVersion(agentId, versionId);
         return parameterCatalog.describe(version.getConfiguration());
     }
@@ -110,11 +138,12 @@ public class AgentVersionService {
     }
 
     public VersionResponse activate(Long agentId, Long versionId, CurrentUser user) {
-        agentService.loadOwnedAgentForUpdate(agentId, user);
+        Agent agent = agentService.loadOwnedAgentForUpdate(agentId, user);
+        accessPolicy.requireWrite(agent, user);
         AgentVersion selectedVersion = requireVersion(agentId, versionId);
         List<AgentVersion> versions = versionRepository.findByAgentId(agentId);
         versions.forEach(version -> version.setActive(version.getId().equals(versionId)));
-        publishUpdatedEvent(agentId, selectedVersion.getId());
+        publishUpdatedEvent(agentId, selectedVersion.getId(), user);
         return versionMapper.toResponse(selectedVersion);
     }
 
@@ -133,7 +162,8 @@ public class AgentVersionService {
             ConfigurationDto configuration,
             CurrentUser user
     ) {
-        agentService.loadOwnedAgentForUpdate(agentId, user);
+        Agent agent = agentService.loadOwnedAgentForUpdate(agentId, user);
+        accessPolicy.requireWrite(agent, user);
         AgentVersion version = requireVersion(agentId, versionId);
         if (configuration == null) {
             throw new InvalidConfigurationException("La configuration est obligatoire.");
@@ -149,7 +179,7 @@ public class AgentVersionService {
         AgentConfiguration updatedConfiguration = versionMapper.toEntity(configuration);
         version.setConfiguration(updatedConfiguration);
         AgentVersion saved = versionRepository.save(version);
-        publishUpdatedEvent(agentId, saved.getId());
+        publishUpdatedEvent(agentId, saved.getId(), user);
         return versionMapper.toResponse(saved);
     }
 
@@ -206,8 +236,9 @@ public class AgentVersionService {
                 .build();
     }
 
-    private void publishUpdatedEvent(Long agentId, Long versionId) {
+    private void publishUpdatedEvent(Long agentId, Long versionId, CurrentUser actor) {
         eventPublisher.publish(AgentEvent.create(
-                AgentEventType.AGENT_UPDATED, "agent-service", agentId, versionId));
+                AgentEventType.AGENT_UPDATED, "agent-service", agentId, versionId,
+                actor.id(), actor.role(), null));
     }
 }

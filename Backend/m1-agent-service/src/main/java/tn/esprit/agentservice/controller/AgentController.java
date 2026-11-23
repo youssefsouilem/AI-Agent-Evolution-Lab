@@ -43,11 +43,12 @@ public class AgentController {
     @Operation(summary = "Créer un agent")
     @ApiResponse(responseCode = "201", description = "Agent créé")
     @ApiResponse(responseCode = "400", description = "Corps invalide")
+    @ApiResponse(responseCode = "403", description = "Quota utilisateur atteint")
     public ResponseEntity<AgentResponse> create(
             @Valid @RequestBody AgentRequest request,
             Authentication authentication
     ) {
-        AgentResponse response = agentService.create(request, CurrentUser.from(authentication).id());
+        AgentResponse response = agentService.create(request, CurrentUser.from(authentication));
         return ResponseEntity.created(URI.create("/api/agents/" + response.id())).body(response);
     }
 
@@ -56,9 +57,10 @@ public class AgentController {
     @ApiResponse(responseCode = "200", description = "Liste des agents")
     public List<AgentResponse> list(
             @RequestParam(defaultValue = "false") boolean all,
+            @RequestParam(required = false) String ownerId,
             Authentication authentication
     ) {
-        return agentService.list(CurrentUser.from(authentication), all);
+        return agentService.list(CurrentUser.from(authentication), all, ownerId);
     }
 
     @GetMapping("/{id}")
@@ -74,6 +76,7 @@ public class AgentController {
     @ApiResponse(responseCode = "200", description = "Agent modifié")
     @ApiResponse(responseCode = "400", description = "Corps invalide")
     @ApiResponse(responseCode = "404", description = "Agent introuvable")
+    @ApiResponse(responseCode = "403", description = "Administrateur en lecture seule sur cet agent")
     public AgentResponse update(
             @PathVariable Long id,
             @Valid @RequestBody AgentRequest request,
@@ -86,6 +89,7 @@ public class AgentController {
     @Operation(summary = "Supprimer un agent")
     @ApiResponse(responseCode = "204", description = "Agent supprimé")
     @ApiResponse(responseCode = "404", description = "Agent introuvable")
+    @ApiResponse(responseCode = "403", description = "Administrateur en lecture seule sur cet agent")
     public ResponseEntity<Void> delete(@PathVariable Long id, Authentication authentication) {
         agentService.delete(id, CurrentUser.from(authentication));
         return ResponseEntity.noContent().build();
@@ -96,9 +100,10 @@ public class AgentController {
     @ApiResponse(responseCode = "200", description = "Exécution terminée")
     @ApiResponse(responseCode = "400", description = "Corps invalide")
     @ApiResponse(responseCode = "404", description = "Agent ou version introuvable")
-    @ApiResponse(responseCode = "422", description = "Configuration invalide")
+    @ApiResponse(responseCode = "422", description = "Configuration invalide ou modèle indisponible")
     @ApiResponse(responseCode = "502", description = "Échec du fournisseur ou des outils")
     @ApiResponse(responseCode = "504", description = "Délai d'exécution dépassé")
+    @ApiResponse(responseCode = "403", description = "Administrateur en lecture seule sur cet agent")
     public ExecuteResponse execute(
             @PathVariable Long id,
             @Valid @RequestBody ExecuteRequest request,

@@ -40,7 +40,8 @@ public class AgentVersionController {
     @ApiResponse(responseCode = "201", description = "Version créée")
     @ApiResponse(responseCode = "400", description = "Corps invalide")
     @ApiResponse(responseCode = "404", description = "Agent ou version de référence introuvable")
-    @ApiResponse(responseCode = "422", description = "Paramètres invalides")
+    @ApiResponse(responseCode = "422", description = "Paramètres invalides ou modèle indisponible")
+    @ApiResponse(responseCode = "403", description = "Administrateur en lecture seule sur cet agent")
     public VersionResponse create(
             @PathVariable Long id,
             @Valid @RequestBody VersionRequest request,
@@ -85,6 +86,7 @@ public class AgentVersionController {
     @Operation(summary = "Activer une version")
     @ApiResponse(responseCode = "200", description = "Version activée")
     @ApiResponse(responseCode = "404", description = "Agent ou version introuvable")
+    @ApiResponse(responseCode = "403", description = "Administrateur en lecture seule sur cet agent")
     public VersionResponse activate(
             @PathVariable Long id,
             @PathVariable Long vid,
@@ -98,6 +100,7 @@ public class AgentVersionController {
     @ApiResponse(responseCode = "200", description = "Configuration mise à jour")
     @ApiResponse(responseCode = "404", description = "Agent ou version introuvable")
     @ApiResponse(responseCode = "422", description = "Configuration invalide")
+    @ApiResponse(responseCode = "403", description = "Administrateur en lecture seule sur cet agent")
     public VersionResponse updateConfiguration(
             @PathVariable Long id,
             @PathVariable Long vid,

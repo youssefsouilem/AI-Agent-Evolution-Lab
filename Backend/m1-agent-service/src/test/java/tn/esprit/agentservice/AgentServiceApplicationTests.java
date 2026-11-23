@@ -2,12 +2,15 @@ package tn.esprit.agentservice;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.Rollback;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import com.fasterxml.jackson.databind.JsonNode;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
@@ -27,6 +30,9 @@ import tn.esprit.agentservice.service.AgentService;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -35,7 +41,12 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "spring.datasource.url=jdbc:h2:mem:agent_service_application;DB_CLOSE_DELAY=-1",
+        "spring.jpa.hibernate.ddl-auto=create-drop",
+        "m1.outbox.poll-interval-ms=3600000"
+})
+@TestPropertySource(properties = "OPENAI_API_KEY=test-key-not-real")
 class AgentServiceApplicationTests {
 
     @Autowired
@@ -55,6 +66,9 @@ class AgentServiceApplicationTests {
 
     @Autowired
     private AgentService agentService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     private MockMvc mockMvc;
 
@@ -78,7 +92,85 @@ class AgentServiceApplicationTests {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.info.title").value("M1 - Agent Management API"))
-                .andExpect(jsonPath("$.paths['/api/agents']").exists());
+                .andExpect(jsonPath("$.paths['/api/agents']").exists())
+                .andExpect(jsonPath("$.paths['/api/me']").exists())
+                .andExpect(jsonPath("$.paths['/api/agents/assist']").exists())
+                .andExpect(jsonPath("$.paths['/api/agents/{id}/stats']").exists())
+                .andExpect(jsonPath("$.paths['/api/admin/audit']").exists());
+    }
+
+    @Test
+    void openApiDocumentsMinimumLengthsErrorSchemasAuthenticationAndCountHeaders() throws Exception {
+        JsonNode document = objectMapper.readTree(mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertEquals(1, requestProperty(document, "/api/agents/{id}/execute", "post", "input")
+                .path("minLength").asInt());
+        assertEquals(1, requestProperty(document, "/api/admin/agents/{id}/archive", "post", "reason")
+                .path("minLength").asInt());
+        assertEquals(1, requestProperty(document, "/api/agents/assist", "post", "description")
+                .path("minLength").asInt());
+
+        JsonNode delete = document.path("paths").path("/api/admin/agents/{id}").path("delete");
+        JsonNode reason = null;
+        for (JsonNode parameter : delete.path("parameters")) {
+            if ("reason".equals(parameter.path("name").asText())) {
+                reason = parameter.path("schema");
+                break;
+            }
+        }
+        assertEquals(1, reason.path("minLength").asInt());
+
+        JsonNode schemas = document.path("components").path("schemas");
+        assertTrue(schemas.has("ErrorResponse"));
+        assertTrue(schemas.path("ErrorResponse").path("properties").path("errorCode")
+                .path("enum").isArray());
+        List<String> documentedCodes = java.util.stream.StreamSupport.stream(
+                        schemas.path("ErrorResponse").path("properties").path("errorCode")
+                                .path("enum").spliterator(), false)
+                .map(JsonNode::asText).toList();
+        assertEquals(java.util.Arrays.stream(tn.esprit.agentservice.dto.ErrorCode.values())
+                .map(Enum::name).toList(), documentedCodes);
+        for (String property : List.of("executionId", "versionId", "durationMs", "promptTokens",
+                "completionTokens", "totalTokens", "toolCallCount")) {
+            assertTrue(schemas.path("ErrorResponse").path("properties").path("execution")
+                    .path("properties").has(property), "Missing execution property " + property);
+        }
+        assertTrue(java.util.stream.StreamSupport.stream(document.path("tags").spliterator(), false)
+                .anyMatch(tag -> "Administration des événements".equals(tag.path("name").asText())));
+
+        for (String path : List.of(
+                "/api/agents/{id}/executions", "/api/executions", "/api/admin/audit")) {
+            JsonNode operation = document.path("paths").path(path).path("get");
+            assertTrue(operation.path("responses").has("401"), path + " must document 401");
+            JsonNode header = operation.path("responses").path("200").path("headers").path("X-Total-Count");
+            assertFalse(header.isMissingNode(), path + " must document X-Total-Count");
+        }
+
+        document.path("paths").fields().forEachRemaining(path -> path.getValue().fields()
+                .forEachRemaining(method -> {
+                    JsonNode responses = method.getValue().path("responses");
+                    assertTrue(responses.has("401"), path.getKey() + " " + method.getKey()
+                            + " must document 401");
+                    responses.fields().forEachRemaining(response -> {
+                        int code = Integer.parseInt(response.getKey());
+                        if (code < 200 || code >= 300) {
+                            assertEquals("#/components/schemas/ErrorResponse",
+                                    response.getValue().path("content").path("application/json")
+                                            .path("schema").path("$ref").asText(),
+                                    path.getKey() + " " + method.getKey() + " " + response.getKey());
+                        }
+                    });
+                }));
+    }
+
+    private JsonNode requestProperty(JsonNode document, String path, String method, String property) {
+        JsonNode schema = document.path("paths").path(path).path(method)
+                .path("requestBody").path("content").path("application/json").path("schema");
+        if (schema.has("$ref")) {
+            String name = schema.path("$ref").asText().replace("#/components/schemas/", "");
+            schema = document.path("components").path("schemas").path(name);
+        }
+        return schema.path("properties").path(property);
     }
 
     @Test
@@ -113,7 +205,8 @@ class AgentServiceApplicationTests {
                 .status(AgentStatus.DRAFT)
                 .build());
 
-        mockMvc.perform(get("/api/agents/{id}", otherAgent.getId()).with(user("caller")))
+        mockMvc.perform(get("/api/agents/{id}", otherAgent.getId()).with(user("caller"))
+                        .header("X-Dev-User", "caller").header("X-Dev-Role", "USER"))
                 .andExpect(status().isNotFound());
     }
 

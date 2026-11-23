@@ -94,6 +94,33 @@ app:
       agent-execution-failed: agent.execution.failed
 
 m1:
+  cors:
+    allowed-origins: ${M1_CORS_ALLOWED_ORIGINS:}
+  quota:
+    user-max-agents: 5
+  llm:
+    strict-model-check: true
+    providers:
+      - id: openai
+        label: OpenAI
+        enabled: true
+        api-key-env: OPENAI_API_KEY
+        models:
+          - id: gpt-4o-mini
+            label: GPT-4o mini
+            recommended: true
+      - id: anthropic
+        label: Anthropic
+        enabled: true
+        api-key-env: ANTHROPIC_API_KEY
+        models: []
+      - id: gemini
+        label: Google Gemini
+        enabled: true
+        api-key-env: GEMINI_API_KEY
+        models: []
+  assist:
+    max-per-hour: 10
   events:
     legacy-aliases: true
   outbox:

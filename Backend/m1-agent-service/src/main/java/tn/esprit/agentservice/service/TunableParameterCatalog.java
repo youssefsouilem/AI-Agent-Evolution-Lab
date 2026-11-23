@@ -12,6 +12,9 @@ import java.util.Map;
 @Component
 public class TunableParameterCatalog {
 
+    public static final int TIMEOUT_SECONDS_MIN = 5;
+    public static final int TIMEOUT_SECONDS_MAX = 120;
+
     private static final List<String> STYLE_CHOICES = List.of("concise", "detaille");
 
     public List<TunableParameterDto> describe(AgentConfiguration configuration) {
@@ -33,7 +36,7 @@ public class TunableParameterCatalog {
                         configuration.getMaxTurns(), "Nombre maximal d'appels d'outils"
                 ),
                 new TunableParameterDto(
-                        "timeoutSeconds", "int", 5, 120, null,
+                        "timeoutSeconds", "int", TIMEOUT_SECONDS_MIN, TIMEOUT_SECONDS_MAX, null,
                         configuration.getTimeoutSeconds(), "Délai maximal d'exécution (secondes)"
                 ),
                 new TunableParameterDto(
@@ -68,7 +71,7 @@ public class TunableParameterCatalog {
                         integerValue(name, value, 1, 10)
                 );
                 case "timeoutSeconds" -> configuration.setTimeoutSeconds(
-                        integerValue(name, value, 5, 120)
+                        integerValue(name, value, TIMEOUT_SECONDS_MIN, TIMEOUT_SECONDS_MAX)
                 );
                 case "style" -> {
                     if (!(value instanceof String style)) {

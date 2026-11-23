@@ -4,6 +4,7 @@
 @versionId = 4
 @executionId = 1
 @outboxEventId = replace-with-outbox-uuid
+@devUser = demo-owner
 @token = replace-with-a-Keycloak-JWT
 
 ### M5 flow: list the current user's agents
@@ -75,6 +76,59 @@ Authorization: Bearer {{token}}
 
 ### Executions across the caller's agents
 GET {{baseUrl}}/api/executions?page=0&size=20
+
+### Dev-only identity simulation (ignored unless profile=dev)
+GET {{baseUrl}}/api/me
+X-Dev-User: {{devUser}}
+X-Dev-Role: USER
+
+### Current user and capabilities
+GET {{baseUrl}}/api/me
+Authorization: {{token}}
+
+### LLM provider/model catalogue
+GET {{baseUrl}}/api/llm/models
+Authorization: {{token}}
+
+### Agent builder proposal (not saved)
+POST {{baseUrl}}/api/agents/assist
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "description": "Un assistant qui résume les notes de réunion.",
+  "language": "fr"
+}
+
+### Agent execution statistics
+GET {{baseUrl}}/api/agents/{{agentId}}/stats?days=7
+Authorization: {{token}}
+
+### Admin: review users and quotas
+GET {{baseUrl}}/api/admin/users
+Authorization: {{token}}
+
+### Admin: set a quota override (null restores the default)
+PUT {{baseUrl}}/api/admin/users/demo-owner/quota
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "maxAgents": 8
+}
+
+### Admin: archive an agent with an audit reason
+POST {{baseUrl}}/api/admin/agents/{{agentId}}/archive
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "reason": "Archive demandée après revue."
+}
+
+### Admin: list audit entries
+GET {{baseUrl}}/api/admin/audit?page=0&size=20
+Authorization: {{token}}
 
 ### Admin: inspect outbox counts and latest failures
 GET {{baseUrl}}/api/admin/outbox

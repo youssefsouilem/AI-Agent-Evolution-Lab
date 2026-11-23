@@ -33,6 +33,7 @@ public class AgentExecution {
     private int versionNumber;
     @Column(nullable = false)
     private String requestedBy;
+    private String requestedByRole;
     @Column(nullable = false, length = 20000)
     private String input;
     @Column(columnDefinition = "CLOB")

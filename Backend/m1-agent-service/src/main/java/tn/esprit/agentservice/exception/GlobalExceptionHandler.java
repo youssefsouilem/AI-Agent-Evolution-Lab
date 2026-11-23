@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.dao.DataIntegrityViolationException;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -41,7 +42,48 @@ public class GlobalExceptionHandler {
             ForbiddenOperationException exception,
             HttpServletRequest request
     ) {
-        return error(HttpStatus.FORBIDDEN, exception.getMessage(), request);
+        return error(HttpStatus.FORBIDDEN, exception.getMessage(), request, exception.getErrorCode(), null, null);
+    }
+
+    @ExceptionHandler(AgentQuotaExceededException.class)
+    public ResponseEntity<ApiError> handleQuotaExceeded(
+            AgentQuotaExceededException exception,
+            HttpServletRequest request
+    ) {
+        return error(HttpStatus.FORBIDDEN, exception.getMessage(), request, "AGENT_QUOTA_EXCEEDED",
+                exception.getLimit(), exception.getUsage());
+    }
+
+    @ExceptionHandler(ModelNotAvailableException.class)
+    public ResponseEntity<ApiError> handleModelUnavailable(
+            ModelNotAvailableException exception,
+            HttpServletRequest request
+    ) {
+        return error(HttpStatus.UNPROCESSABLE_ENTITY, exception.getMessage(), request, "MODEL_NOT_AVAILABLE", null, null);
+    }
+
+    @ExceptionHandler(ProviderNotConfiguredException.class)
+    public ResponseEntity<ApiError> handleProviderNotConfigured(
+            ProviderNotConfiguredException exception,
+            HttpServletRequest request
+    ) {
+        return codedError(HttpStatus.BAD_GATEWAY, exception.getMessage(), "PROVIDER_NOT_CONFIGURED", request);
+    }
+
+    @ExceptionHandler(AssistInvalidOutputException.class)
+    public ResponseEntity<ApiError> handleAssistInvalidOutput(
+            AssistInvalidOutputException exception,
+            HttpServletRequest request
+    ) {
+        return codedError(HttpStatus.BAD_GATEWAY, exception.getMessage(), "ASSIST_INVALID_OUTPUT", request);
+    }
+
+    @ExceptionHandler(RateLimitedException.class)
+    public ResponseEntity<ApiError> handleRateLimited(
+            RateLimitedException exception,
+            HttpServletRequest request
+    ) {
+        return codedError(HttpStatus.TOO_MANY_REQUESTS, exception.getMessage(), "RATE_LIMITED", request);
     }
 
     @ExceptionHandler(InvalidConfigurationException.class)
@@ -98,7 +140,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class,
-            ConstraintViolationException.class})
+            ConstraintViolationException.class, MissingServletRequestParameterException.class})
     public ResponseEntity<ApiError> handleUnreadableRequest(Exception exception, HttpServletRequest request) {
         return error(HttpStatus.BAD_REQUEST, "Le corps ou les paramètres de la requête sont invalides.", request);
     }
@@ -114,13 +156,33 @@ public class GlobalExceptionHandler {
     }
 
     private ResponseEntity<ApiError> error(HttpStatus status, String message, HttpServletRequest request) {
+        return error(status, message, request, null, null, null);
+    }
+
+    private ResponseEntity<ApiError> error(
+            HttpStatus status,
+            String message,
+            HttpServletRequest request,
+            String errorCode,
+            Integer limit,
+            Long usage
+    ) {
         ApiError body = new ApiError(
                 Instant.now(),
                 status.value(),
                 status.getReasonPhrase(),
                 message,
-                request.getRequestURI()
+                request.getRequestURI(),
+                errorCode,
+                limit,
+                usage
         );
         return ResponseEntity.status(status).body(body);
+    }
+
+    private ResponseEntity<ApiError> codedError(
+            HttpStatus status, String message, String code, HttpServletRequest request
+    ) {
+        return error(status, message, request, code, null, null);
     }
 }

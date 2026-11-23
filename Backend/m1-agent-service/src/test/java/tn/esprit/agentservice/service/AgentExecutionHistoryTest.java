@@ -59,7 +59,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
         "spring.ai.openai.api-key=test-placeholder",
         "spring.datasource.url=jdbc:h2:mem:execution_history_test;DB_CLOSE_DELAY=-1",
         "spring.jpa.hibernate.ddl-auto=create-drop",
-        "m1.demo.seed=false"
+        "m1.demo.seed=false",
+        "m1.outbox.poll-interval-ms=3600000",
+        "OPENAI_API_KEY=test-placeholder"
 })
 @Import(AgentExecutionHistoryTest.GatewayTestConfiguration.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -109,7 +111,7 @@ class AgentExecutionHistoryTest {
         agents.deleteAll();
         Agent agent = agents.saveAndFlush(Agent.builder().name("Execution test").ownerId("dev-user")
                 .status(AgentStatus.ACTIVE).build());
-        version = versions.saveAndFlush(AgentVersion.builder().agent(agent).versionNumber(1).model("test-model")
+        version = versions.saveAndFlush(AgentVersion.builder().agent(agent).versionNumber(1).model("gpt-4o-mini")
                 .systemPrompt("Always answer in French.")
                 .active(true)
                 .configuration(AgentConfiguration.builder().temperature(0.7).maxTurns(3).timeoutSeconds(30)

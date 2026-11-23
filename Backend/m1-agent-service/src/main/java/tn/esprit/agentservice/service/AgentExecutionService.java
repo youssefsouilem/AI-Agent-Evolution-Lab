@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import tn.esprit.agentservice.config.CurrentUser;
@@ -53,6 +54,9 @@ public class AgentExecutionService {
     private final ObjectMapper objectMapper;
     private final ExecutorService executionExecutor;
     private final String apiKey;
+    private final AgentAccessPolicy accessPolicy;
+    private final ModelCatalogService modelCatalog;
+    private final ProviderRouter providerRouter;
 
     public AgentExecutionService(
             AgentService agentService,
@@ -67,6 +71,28 @@ public class AgentExecutionService {
             ExecutorService executionExecutor,
             @Value("${spring.ai.openai.api-key:missing-key}") String apiKey
     ) {
+        this(agentService, versionService, versionRepository, toolProvider, catalog, llmGateway,
+                failureClassifier, store, objectMapper, executionExecutor, apiKey,
+                new AgentAccessPolicy(), null, null);
+    }
+
+    @Autowired
+    public AgentExecutionService(
+            AgentService agentService,
+            AgentVersionService versionService,
+            AgentVersionRepository versionRepository,
+            ObjectProvider<AgentToolProvider> toolProvider,
+            TunableParameterCatalog catalog,
+            LlmGateway llmGateway,
+            LlmFailureClassifier failureClassifier,
+            AgentExecutionStore store,
+            ObjectMapper objectMapper,
+            ExecutorService executionExecutor,
+            @Value("${spring.ai.openai.api-key:missing-key}") String apiKey,
+            AgentAccessPolicy accessPolicy,
+            ModelCatalogService modelCatalog,
+            ProviderRouter providerRouter
+    ) {
         this.agentService = agentService;
         this.versionService = versionService;
         this.versionRepository = versionRepository;
@@ -78,10 +104,14 @@ public class AgentExecutionService {
         this.objectMapper = objectMapper;
         this.executionExecutor = executionExecutor;
         this.apiKey = apiKey;
+        this.accessPolicy = accessPolicy;
+        this.modelCatalog = modelCatalog;
+        this.providerRouter = providerRouter;
     }
 
     public ExecuteResponse execute(Long agentId, ExecuteRequest request, CurrentUser user) {
-        Agent agent = agentService.loadOwnedAgent(agentId, user);
+        Agent agent = agentService.loadOwnedAgentForUpdate(agentId, user);
+        accessPolicy.requireWrite(agent, user);
         if (agent.getStatus() == tn.esprit.agentservice.entity.AgentStatus.ARCHIVED) {
             throw new InvalidConfigurationException("Un agent archivé ne peut pas être exécuté.");
         }
@@ -91,6 +121,9 @@ public class AgentExecutionService {
                                 "Aucune version active n'est disponible pour cet agent."
                         ))
                 : versionService.requireVersion(agentId, request.versionId());
+        if (modelCatalog != null && modelCatalog.strictModelCheck()) {
+            modelCatalog.requireAvailable(version.getModel());
+        }
         AgentConfiguration storedConfiguration = version.getConfiguration();
         if (storedConfiguration == null) {
             throw new InvalidConfigurationException("La version sélectionnée ne possède pas de configuration.");
@@ -109,7 +142,7 @@ public class AgentExecutionService {
         String contextJson = request.context() == null ? null : request.context().toString();
         String userMessage = userMessage(request);
 
-        var execution = store.start(agentId, version.getId(), version.getVersionNumber(), user.id(),
+        var execution = store.start(agentId, version.getId(), version.getVersionNumber(), user.id(), user.role(),
                 request.input(), contextJson, request.overrides(), appliedSettings, version.getModel());
         long startNanos = System.nanoTime();
         ToolCallRecorder recorder = new ToolCallRecorder();
@@ -149,7 +182,7 @@ public class AgentExecutionService {
             call = executionExecutor.submit(() -> {
                 ToolAuthorizationContext.set(callerAuthorization);
                 try {
-                    return llmGateway.call(llmRequest);
+                    return providerRouter == null ? llmGateway.call(llmRequest) : providerRouter.call(llmRequest);
                 } finally {
                     ToolAuthorizationContext.clear();
                 }
