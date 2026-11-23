@@ -21,7 +21,7 @@ import {
 import { Link } from 'react-router-dom'
 import { useState } from 'react'
 
-export function PageHeader({ crumb, title, subtitle, action, onAction }) {
+export function PageHeader({ crumb, title, subtitle, action, onAction, actionDisabled = false, actionTooltip }) {
   return (
     <>
       <div className="m1-breadcrumb">
@@ -33,7 +33,12 @@ export function PageHeader({ crumb, title, subtitle, action, onAction }) {
           <p>{subtitle}</p>
         </div>
         {action && (
-          <button className="m1-primary" onClick={onAction}>
+          <button
+            className="m1-primary"
+            onClick={actionDisabled ? undefined : onAction}
+            disabled={actionDisabled}
+            title={actionTooltip}
+          >
             <Plus size={16} />
             {action}
           </button>
@@ -138,15 +143,79 @@ export function SearchInput({ value, onChange, placeholder = 'Rechercher un agen
   )
 }
 
-export function CreateCard({ label = 'Créer un agent', onClick }) {
+export function CreateCard({ label = 'Créer un agent', onClick, disabled = false, tooltip }) {
   return (
-    <button type="button" className="m1-create-card" onClick={onClick}>
+    <button
+      type="button"
+      className={`m1-create-card ${disabled ? 'disabled' : ''}`}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      title={tooltip}
+    >
       <span>
         <Plus size={24} />
       </span>
       <strong>{label}</strong>
-      <small>À partir de zéro</small>
+      <small>{disabled ? tooltip || 'Quota atteint' : 'À partir de zéro'}</small>
     </button>
+  )
+}
+
+export function ReasonDialog({
+  title,
+  message = 'Veuillez saisir un motif obligatoire (au moins 5 caractères).',
+  confirmLabel = 'Confirmer',
+  cancelLabel = 'Annuler',
+  variant = 'danger',
+  onCancel,
+  onConfirm,
+}) {
+  const [reason, setReason] = useState('')
+  const [touched, setTouched] = useState(false)
+  const isValid = reason.trim().length >= 5
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    setTouched(true)
+    if (isValid) {
+      onConfirm(reason.trim())
+    }
+  }
+
+  return (
+    <div className="m1-modal-backdrop" onClick={onCancel}>
+      <div className="m1-dialog" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <h2>{title}</h2>
+        <p>{message}</p>
+        <form onSubmit={handleSubmit}>
+          <label className="m1-field" style={{ marginBottom: 20 }}>
+            <span>Motif administratif (requis, min. 5 caractères)</span>
+            <input
+              type="text"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Ex. Demande de l'utilisateur, nettoyage..."
+              autoFocus
+            />
+            {touched && !isValid && (
+              <span className="m1-field-error">Le motif doit contenir au moins 5 caractères.</span>
+            )}
+          </label>
+          <div className="m1-modal-actions">
+            <button type="button" className="m1-ghost" onClick={onCancel}>
+              {cancelLabel}
+            </button>
+            <button
+              type="submit"
+              className={variant === 'danger' ? 'm1-danger' : 'm1-primary'}
+              disabled={!isValid}
+            >
+              {confirmLabel}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   )
 }
 
@@ -214,7 +283,7 @@ export function TextareaField({ label, error, helper, ...props }) {
   )
 }
 
-export function AgentCard({ agent, isAdmin, onEdit, onArchive, onDelete }) {
+export function AgentCard({ agent, isAdmin, isReadOnly = false, onEdit, onArchive, onDelete }) {
   const [menuOpen, setMenuOpen] = useState(false)
 
   const formatDate = (dateStr) => {
@@ -287,6 +356,7 @@ export function AgentCard({ agent, isAdmin, onEdit, onArchive, onDelete }) {
       <div className="m1-card-title">
         <strong>{agent.name}</strong>
         <AgentStatusBadge status={agent.status} />
+        {isReadOnly && <span className="m1-badge m1-badge-readonly">Lecture seule</span>}
       </div>
 
       {isAdmin && (

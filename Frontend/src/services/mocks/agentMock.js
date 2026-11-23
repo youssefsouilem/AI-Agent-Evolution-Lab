@@ -1,15 +1,50 @@
 export class ApiError extends Error {
-  constructor(status, message, details = null) {
+  constructor(status, message, errorCode = null, details = null) {
     super(message)
     this.status = status
     this.name = 'ApiError'
-    this.errorCode = details?.errorCode || null
+    this.errorCode = errorCode || details?.errorCode || null
     this.execution = details?.execution || null
+    this.limit = details?.limit ?? null
+    this.usage = details?.usage ?? null
     this.details = details
   }
 }
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+function getCurrentDevRole() {
+  try {
+    return localStorage.getItem('evolution-lab-role') || 'USER'
+  } catch {
+    return 'USER'
+  }
+}
+
+let userQuotaOverrides = {
+  'demo-user': null, // default 5
+}
+
+let auditLog = [
+  {
+    id: 1,
+    occurredAt: '2026-11-20T10:15:00Z',
+    actor: 'demo-admin',
+    action: 'ARCHIVE_AGENT',
+    targetType: 'AGENT',
+    targetId: '4',
+    reason: 'Archivage préventif suite à une refonte de la documentation.',
+  },
+  {
+    id: 2,
+    occurredAt: '2026-11-21T14:30:00Z',
+    actor: 'demo-admin',
+    action: 'SET_QUOTA',
+    targetType: 'USER',
+    targetId: 'demo-user',
+    reason: 'Attribution du quota standard de 5 agents pour évaluation.',
+  },
+]
 
 let agents = [
   {
@@ -17,7 +52,7 @@ let agents = [
     name: 'Agent Support Client',
     description: 'Agent conversationnel pour assister les clients et traiter les tickets fréquents.',
     status: 'ACTIVE',
-    ownerId: 'user-alice',
+    ownerId: 'demo-user',
     createdAt: '2026-11-10T10:00:00Z',
     updatedAt: '2026-11-15T14:30:00Z',
   },
@@ -26,7 +61,7 @@ let agents = [
     name: 'Agent Analyse Données',
     description: 'Agent automatisé pour analyser les métriques de vente et générer des synthèses.',
     status: 'DRAFT',
-    ownerId: 'user-alice',
+    ownerId: 'demo-user',
     createdAt: '2026-11-12T09:15:00Z',
     updatedAt: '2026-11-16T11:20:00Z',
   },
@@ -35,7 +70,7 @@ let agents = [
     name: 'Agent Recrutement',
     description: 'Agent RH pour le tri des candidatures et la préparation des entretiens.',
     status: 'ACTIVE',
-    ownerId: 'user-bob',
+    ownerId: 'user-other',
     createdAt: '2026-11-08T16:45:00Z',
     updatedAt: '2026-11-14T09:00:00Z',
   },
@@ -44,7 +79,7 @@ let agents = [
     name: 'Agent Documentation',
     description: 'Agent pour maintenir et structurer la documentation technique des APIs.',
     status: 'ARCHIVED',
-    ownerId: 'user-alice',
+    ownerId: 'demo-user',
     createdAt: '2026-10-25T08:30:00Z',
     updatedAt: '2026-11-01T17:00:00Z',
   },
@@ -57,7 +92,7 @@ let versions = [
     label: 'Version 1 (active)',
     versionNumber: 1,
     model: 'gpt-4o-mini',
-    systemPrompt: 'Tu es un agent de support client bienveillant. Réponds de manière concise et professionnelle.',
+    systemPrompt: 'Tu es un agent de support client bienveillant. Réponds de manière concise et professionnelle en français.',
     changeLog: 'Version initiale de démarrage',
     active: true,
     source: 'USER',
@@ -154,26 +189,6 @@ let versions = [
   },
   {
     id: 6,
-    agentId: 3,
-    label: 'Version 2',
-    versionNumber: 2,
-    model: 'gpt-4o',
-    systemPrompt: 'Tu es un consultant RH avec 10 ans d expérience dans la tech.',
-    changeLog: 'Raffinement des critères d évaluation',
-    active: false,
-    source: 'USER',
-    createdAt: '2026-11-14T09:00:00Z',
-    configuration: {
-      temperature: 0.7,
-      maxTokens: 2048,
-      maxTurns: 6,
-      timeoutSeconds: 50,
-      style: 'detaille',
-      allowedToolIds: [5, 6, 7],
-    },
-  },
-  {
-    id: 7,
     agentId: 4,
     label: 'Version 1 (active)',
     versionNumber: 1,
@@ -213,7 +228,7 @@ let executions = [
     hasOverrides: false,
     startedAt: '2026-11-18T14:20:00Z',
     finishedAt: '2026-11-18T14:20:01Z',
-    requestedBy: 'user-alice',
+    requestedBy: 'demo-user',
     modelUsed: 'gpt-4o-mini',
   },
   {
@@ -229,14 +244,14 @@ let executions = [
     durationMs: 650,
     promptTokens: null,
     completionTokens: null,
-    totalTokens: null, // Test case: tokens null should display "Indisponible"
+    totalTokens: null,
     toolCallCount: 0,
     hasOverrides: true,
     overrides: JSON.stringify({ temperature: 0.2 }),
     appliedSettings: JSON.stringify({ temperature: 0.2, maxTokens: 1024, style: 'concise' }),
     startedAt: '2026-11-18T16:45:00Z',
     finishedAt: '2026-11-18T16:45:01Z',
-    requestedBy: 'user-alice',
+    requestedBy: 'demo-user',
     modelUsed: 'gpt-4o-mini',
   },
   {
@@ -259,7 +274,7 @@ let executions = [
     hasOverrides: false,
     startedAt: '2026-11-19T09:10:00Z',
     finishedAt: '2026-11-19T09:10:02Z',
-    requestedBy: 'user-alice',
+    requestedBy: 'demo-user',
     modelUsed: 'gpt-4o-mini',
   },
   {
@@ -280,43 +295,105 @@ let executions = [
     hasOverrides: false,
     startedAt: '2026-11-19T11:00:00Z',
     finishedAt: '2026-11-19T11:00:01Z',
-    requestedBy: 'user-bob',
+    requestedBy: 'user-other',
     modelUsed: 'gpt-4o',
   },
 ]
 
 let nextAgentId = 5
-let nextVersionId = 8
+let nextVersionId = 7
 let nextExecutionId = 105
+let nextAuditId = 3
 
 export const agentMock = {
+  async getMe() {
+    await delay(200)
+    const role = getCurrentDevRole()
+    const isAdmin = role === 'ADMIN'
+
+    const userAgents = agents.filter((a) => a.ownerId === (isAdmin ? 'demo-admin' : 'demo-user'))
+    const effectiveLimit = isAdmin ? null : userQuotaOverrides['demo-user'] ?? 5
+
+    return {
+      userId: isAdmin ? 'demo-admin' : 'demo-user',
+      displayName: isAdmin ? 'Administrateur démo' : 'Utilisateur démo',
+      role: isAdmin ? 'ADMIN' : 'USER',
+      limits: {
+        maxAgents: effectiveLimit,
+      },
+      usage: {
+        agents: userAgents.length,
+      },
+      capabilities: {
+        history: true,
+        overrides: true,
+        assist: true,
+        llmCatalog: true,
+        stats: true,
+        quota: true,
+      },
+    }
+  },
+
   async listAgents({ all = false } = {}) {
-    await delay(500)
-    if (all) {
+    await delay(350)
+    const role = getCurrentDevRole()
+    const isAdmin = role === 'ADMIN'
+
+    if (all && isAdmin) {
       return agents.map((a) => ({ ...a }))
     }
-    // Normal user sees only alice's agents by default
-    return agents.filter((a) => a.ownerId === 'user-alice').map((a) => ({ ...a }))
+    const currentOwner = isAdmin ? 'demo-admin' : 'demo-user'
+    return agents.filter((a) => a.ownerId === currentOwner).map((a) => ({ ...a }))
   },
 
   async getAgent(id) {
-    await delay(500)
+    await delay(300)
+    const role = getCurrentDevRole()
+    const isAdmin = role === 'ADMIN'
+    const currentOwner = isAdmin ? 'demo-admin' : 'demo-user'
+
     const agent = agents.find((a) => a.id === parseInt(id, 10))
-    if (!agent) throw new ApiError(404, 'Agent introuvable')
+    if (!agent) {
+      throw new ApiError(404, 'Agent introuvable')
+    }
+
+    if (!isAdmin && agent.ownerId !== currentOwner) {
+      throw new ApiError(404, 'Agent introuvable')
+    }
+
     return { ...agent }
   },
 
   async createAgent(data) {
-    await delay(500)
+    await delay(400)
+    const role = getCurrentDevRole()
+    const isAdmin = role === 'ADMIN'
+    const ownerId = isAdmin ? 'demo-admin' : 'demo-user'
+
     if (!data.name || !data.name.trim()) {
       throw new ApiError(400, 'Le nom de l agent est obligatoire')
     }
+
+    if (!isAdmin) {
+      const currentCount = agents.filter((a) => a.ownerId === ownerId).length
+      const limit = userQuotaOverrides['demo-user'] ?? 5
+      if (currentCount >= limit) {
+        throw new ApiError(
+          403,
+          `Limite atteinte : quota d'agents dépassé (limite : ${limit}).`,
+          'AGENT_QUOTA_EXCEEDED',
+          { limit, usage: currentCount }
+        )
+      }
+    }
+
     const newAgent = {
       id: nextAgentId++,
       name: data.name.trim(),
       description: data.description || '',
       status: data.status || 'DRAFT',
-      ownerId: 'user-alice',
+      ownerId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
@@ -325,9 +402,26 @@ export const agentMock = {
   },
 
   async updateAgent(id, data) {
-    await delay(500)
+    await delay(350)
+    const role = getCurrentDevRole()
+    const isAdmin = role === 'ADMIN'
+    const currentOwner = isAdmin ? 'demo-admin' : 'demo-user'
+
     const index = agents.findIndex((a) => a.id === parseInt(id, 10))
     if (index === -1) throw new ApiError(404, 'Agent introuvable')
+
+    if (!isAdmin && agents[index].ownerId !== currentOwner) {
+      throw new ApiError(404, 'Agent introuvable')
+    }
+
+    if (isAdmin && agents[index].ownerId !== currentOwner) {
+      throw new ApiError(
+        403,
+        "Action interdite : vous consultez cet agent en lecture seule.",
+        'ADMIN_READ_ONLY'
+      )
+    }
+
     agents[index] = {
       ...agents[index],
       ...data,
@@ -337,24 +431,40 @@ export const agentMock = {
   },
 
   async deleteAgent(id) {
-    await delay(500)
+    await delay(350)
+    const role = getCurrentDevRole()
+    const isAdmin = role === 'ADMIN'
+    const currentOwner = isAdmin ? 'demo-admin' : 'demo-user'
     const numId = parseInt(id, 10)
+
     const index = agents.findIndex((a) => a.id === numId)
     if (index === -1) throw new ApiError(404, 'Agent introuvable')
+
+    if (!isAdmin && agents[index].ownerId !== currentOwner) {
+      throw new ApiError(404, 'Agent introuvable')
+    }
+
+    if (isAdmin && agents[index].ownerId !== currentOwner) {
+      throw new ApiError(
+        403,
+        "Action interdite : vous consultez cet agent en lecture seule.",
+        'ADMIN_READ_ONLY'
+      )
+    }
+
     agents.splice(index, 1)
-    // Deleting an agent deletes its versions and execution history
     versions = versions.filter((v) => v.agentId !== numId)
     executions = executions.filter((e) => e.agentId !== numId)
   },
 
   async listVersions(agentId) {
-    await delay(500)
+    await delay(300)
     const numId = parseInt(agentId, 10)
     return versions.filter((v) => v.agentId === numId).map((v) => ({ ...v }))
   },
 
   async getVersion(agentId, vid) {
-    await delay(500)
+    await delay(300)
     const version = versions.find(
       (v) => v.id === parseInt(vid, 10) && v.agentId === parseInt(agentId, 10)
     )
@@ -363,8 +473,21 @@ export const agentMock = {
   },
 
   async createVersion(agentId, data) {
-    await delay(500)
+    await delay(400)
     const numId = parseInt(agentId, 10)
+    const agent = agents.find((a) => a.id === numId)
+    if (!agent) throw new ApiError(404, 'Agent introuvable')
+
+    const role = getCurrentDevRole()
+    const isAdmin = role === 'ADMIN'
+    if (isAdmin && agent.ownerId !== 'demo-admin') {
+      throw new ApiError(
+        403,
+        "Action interdite : vous consultez cet agent en lecture seule.",
+        'ADMIN_READ_ONLY'
+      )
+    }
+
     const agentVersions = versions.filter((v) => v.agentId === numId)
     const maxVersionNumber =
       agentVersions.length > 0 ? Math.max(...agentVersions.map((v) => v.versionNumber)) : 0
@@ -394,8 +517,21 @@ export const agentMock = {
   },
 
   async activateVersion(agentId, vid) {
-    await delay(500)
+    await delay(300)
     const numId = parseInt(agentId, 10)
+    const agent = agents.find((a) => a.id === numId)
+    if (!agent) throw new ApiError(404, 'Agent introuvable')
+
+    const role = getCurrentDevRole()
+    const isAdmin = role === 'ADMIN'
+    if (isAdmin && agent.ownerId !== 'demo-admin') {
+      throw new ApiError(
+        403,
+        "Action interdite : vous consultez cet agent en lecture seule.",
+        'ADMIN_READ_ONLY'
+      )
+    }
+
     const targetVid = parseInt(vid, 10)
     const agentVersions = versions.filter((v) => v.agentId === numId)
     const target = agentVersions.find((v) => v.id === targetVid)
@@ -411,7 +547,7 @@ export const agentMock = {
   },
 
   async updateConfiguration(agentId, vid, config) {
-    await delay(500)
+    await delay(300)
     const version = versions.find(
       (v) => v.id === parseInt(vid, 10) && v.agentId === parseInt(agentId, 10)
     )
@@ -421,7 +557,7 @@ export const agentMock = {
   },
 
   async getTunableParameters(agentId, vid) {
-    await delay(500)
+    await delay(250)
     const version = versions.find(
       (v) => v.id === parseInt(vid, 10) && v.agentId === parseInt(agentId, 10)
     )
@@ -470,29 +606,43 @@ export const agentMock = {
   },
 
   async executeAgent(agentId, { versionId, input, context, overrides }) {
-    await delay(500)
+    await delay(450)
     const numAgentId = parseInt(agentId, 10)
     const agent = agents.find((a) => a.id === numAgentId)
     if (!agent) throw new ApiError(404, 'Agent introuvable')
 
-    // Error simulation triggers
+    const role = getCurrentDevRole()
+    const isAdmin = role === 'ADMIN'
+    if (isAdmin && agent.ownerId !== 'demo-admin') {
+      throw new ApiError(
+        403,
+        "Action interdite : vous consultez cet agent en lecture seule.",
+        'ADMIN_READ_ONLY'
+      )
+    }
+
     if (input === 'error-404') {
       throw new ApiError(404, 'Ressource introuvable')
     }
     if (input === 'error-422') {
-      throw new ApiError(422, 'Données invalides', {
+      throw new ApiError(422, 'Données invalides', 'TOOL_LIMIT_EXCEEDED', {
         errorCode: 'TOOL_LIMIT_EXCEEDED',
         message: "Nombre maximal d'appels d'outils dépassé (limite atteinte)",
       })
     }
     if (input === 'error-502') {
-      throw new ApiError(502, 'Service indisponible (outils ou modèle de langage)', {
-        errorCode: 'PROVIDER_NOT_CONFIGURED',
-        message: 'Clé API du modèle LLM non configurée sur le serveur M1',
-      })
+      throw new ApiError(
+        502,
+        'Service indisponible (outils ou modèle de langage)',
+        'PROVIDER_NOT_CONFIGURED',
+        {
+          errorCode: 'PROVIDER_NOT_CONFIGURED',
+          message: 'Clé API du modèle LLM non configurée sur le serveur M1',
+        }
+      )
     }
     if (input === 'error-504') {
-      throw new ApiError(504, 'Délai dépassé', {
+      throw new ApiError(504, 'Délai dépassé', 'TIMEOUT', {
         errorCode: 'TIMEOUT',
         message: "Le fournisseur LLM n'a pas répondu dans le délai imparti",
       })
@@ -514,7 +664,7 @@ export const agentMock = {
       input,
       inputPreview: input.slice(0, 100),
       context: context ? JSON.stringify(context) : null,
-      output: `[Mode Démo] Réponse générée avec succès pour l'agent "${agent.name}" à partir de l'entrée : "${input}".`,
+      output: `[Mode Démo] Réponse générée avec succès pour l'agent "${agent.name}" : "Bonjour ! Comment puis-je vous assister aujourd'hui ?"`,
       durationMs: 780,
       promptTokens: 52,
       completionTokens: 38,
@@ -525,7 +675,7 @@ export const agentMock = {
       appliedSettings: JSON.stringify(appliedSettings),
       startedAt: new Date(Date.now() - 780).toISOString(),
       finishedAt: new Date().toISOString(),
-      requestedBy: 'user-alice',
+      requestedBy: agent.ownerId,
       modelUsed: 'gpt-4o-mini',
     }
     executions.unshift(executionRecord)
@@ -546,7 +696,7 @@ export const agentMock = {
   },
 
   async listTools() {
-    await delay(500)
+    await delay(300)
     return [
       { id: 1, name: 'Recherche FAQ' },
       { id: 2, name: 'Création ticket' },
@@ -559,13 +709,232 @@ export const agentMock = {
     ]
   },
 
-  async getM1Health() {
+  async listLlmModels() {
     await delay(300)
+    return [
+      {
+        provider: 'openai',
+        label: 'OpenAI',
+        available: true,
+        models: [
+          { id: 'gpt-4o-mini', label: 'GPT-4o Mini', recommended: true },
+          { id: 'gpt-4o', label: 'GPT-4o', recommended: false },
+          { id: 'gpt-4-turbo', label: 'GPT-4 Turbo', recommended: false },
+        ],
+      },
+      {
+        provider: 'anthropic',
+        label: 'Anthropic',
+        available: false,
+        reason: 'Clé ANTHROPIC_API_KEY absente sur le serveur.',
+        models: [
+          { id: 'claude-3-5-sonnet', label: 'Claude 3.5 Sonnet', recommended: true },
+          { id: 'claude-3-haiku', label: 'Claude 3 Haiku', recommended: false },
+        ],
+      },
+      {
+        provider: 'google',
+        label: 'Google Gemini',
+        available: false,
+        reason: 'Clé GEMINI_API_KEY absente sur le serveur.',
+        models: [
+          { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', recommended: false },
+          { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash', recommended: true },
+        ],
+      },
+    ]
+  },
+
+  async assistAgent({ description, language: _language = 'fr' }) {
+    await delay(600)
+    if (!description || !description.trim()) {
+      throw new ApiError(400, 'La description est obligatoire')
+    }
+
+    if (description.includes('error-429')) {
+      throw new ApiError(429, 'Trop de demandes, réessayez plus tard.', 'RATE_LIMITED')
+    }
+    if (description.includes('error-502')) {
+      throw new ApiError(502, 'Fournisseur absent ou sortie invalide.', 'ASSIST_INVALID_OUTPUT')
+    }
+
+    const trimmed = description.trim()
+    const nameProposal =
+      trimmed.length > 25
+        ? 'Agent ' + trimmed.slice(0, 25).trim()
+        : 'Agent ' + trimmed
+
+    return {
+      name: nameProposal,
+      description: trimmed,
+      systemPrompt: `Tu es un assistant IA spécialisé dans la mission suivante : "${trimmed}".\n\nDirectives :\n- Réponds de manière précise, claire et structurée.\n- Sois professionnel, courtois et synthétique.\n- Respecte scrupuleusement la langue française.`,
+      model: 'gpt-4o-mini',
+      temperature: 0.7,
+      maxTokens: 1024,
+      maxTurns: 3,
+      timeoutSeconds: 30,
+      style: 'concise',
+    }
+  },
+
+  async getAgentStats(agentId, days = 7) {
+    await delay(300)
+    const numId = parseInt(agentId, 10)
+    const agentExecs = executions.filter((e) => e.agentId === numId)
+    const total = agentExecs.length
+    const completed = agentExecs.filter((e) => e.status === 'COMPLETED').length
+    const failed = agentExecs.filter((e) => e.status === 'FAILED').length
+    const successRate = total > 0 ? (completed / total) * 100 : 0
+    const knownTokensExecs = agentExecs.filter((e) => e.totalTokens !== null && e.totalTokens !== undefined)
+    const totalTokensKnown = knownTokensExecs.reduce((sum, e) => sum + e.totalTokens, 0)
+    const executionsWithUnknownTokens = total - knownTokensExecs.length
+
+    // Generate byDay breakdown
+    const byDay = []
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date()
+      d.setDate(d.getDate() - i)
+      const dateStr = d.toISOString().split('T')[0]
+      const count = i === 0 ? total : Math.floor(Math.random() * 3)
+      byDay.push({
+        date: dateStr,
+        total: count,
+        failed: i === 1 ? 1 : 0,
+        avgDurationMs: 750 + Math.floor(Math.random() * 200),
+        tokens: count * 85,
+      })
+    }
+
+    return {
+      days,
+      total: Math.max(total, 5),
+      completed: Math.max(completed, 4),
+      failed,
+      successRate: total > 0 ? Math.round(successRate) : 92,
+      avgDurationMs: 820,
+      p95DurationMs: 1450,
+      totalTokensKnown: totalTokensKnown > 0 ? totalTokensKnown : 450,
+      executionsWithUnknownTokens,
+      byDay,
+    }
+  },
+
+  async adminListUsers() {
+    await delay(300)
+    return [
+      {
+        ownerId: 'demo-user',
+        agentCount: agents.filter((a) => a.ownerId === 'demo-user').length,
+        activeAgentCount: agents.filter(
+          (a) => a.ownerId === 'demo-user' && a.status === 'ACTIVE'
+        ).length,
+        effectiveQuota: userQuotaOverrides['demo-user'] ?? 5,
+        quotaIsOverride: userQuotaOverrides['demo-user'] !== null,
+        lastActivityAt: '2026-11-23T20:45:00Z',
+      },
+      {
+        ownerId: 'user-other',
+        agentCount: agents.filter((a) => a.ownerId === 'user-other').length,
+        activeAgentCount: agents.filter(
+          (a) => a.ownerId === 'user-other' && a.status === 'ACTIVE'
+        ).length,
+        effectiveQuota: 5,
+        quotaIsOverride: false,
+        lastActivityAt: '2026-11-22T16:10:00Z',
+      },
+      {
+        ownerId: 'demo-admin',
+        agentCount: agents.filter((a) => a.ownerId === 'demo-admin').length,
+        activeAgentCount: agents.filter(
+          (a) => a.ownerId === 'demo-admin' && a.status === 'ACTIVE'
+        ).length,
+        effectiveQuota: null,
+        quotaIsOverride: false,
+        lastActivityAt: '2026-11-23T21:00:00Z',
+      },
+    ]
+  },
+
+  async adminSetQuota(ownerId, maxAgents) {
+    await delay(300)
+    userQuotaOverrides[ownerId] = maxAgents
+    auditLog.unshift({
+      id: nextAuditId++,
+      occurredAt: new Date().toISOString(),
+      actor: 'demo-admin',
+      action: 'SET_QUOTA',
+      targetType: 'USER',
+      targetId: ownerId,
+      reason:
+        maxAgents === null
+          ? 'Réinitialisation au quota par défaut.'
+          : `Modification personnalisée du quota à ${maxAgents} agents.`,
+    })
+    return { ownerId, maxAgents }
+  },
+
+  async adminArchiveAgent(id, reason) {
+    await delay(350)
+    if (!reason || reason.trim().length < 5) {
+      throw new ApiError(400, 'Une raison d au moins 5 caractères est obligatoire')
+    }
+    const numId = parseInt(id, 10)
+    const agent = agents.find((a) => a.id === numId)
+    if (!agent) throw new ApiError(404, 'Agent introuvable')
+
+    agent.status = 'ARCHIVED'
+    auditLog.unshift({
+      id: nextAuditId++,
+      occurredAt: new Date().toISOString(),
+      actor: 'demo-admin',
+      action: 'ARCHIVE_AGENT',
+      targetType: 'AGENT',
+      targetId: String(numId),
+      reason: reason.trim(),
+    })
+  },
+
+  async adminDeleteAgent(id, reason) {
+    await delay(350)
+    if (!reason || reason.trim().length < 5) {
+      throw new ApiError(400, 'Une raison d au moins 5 caractères est obligatoire')
+    }
+    const numId = parseInt(id, 10)
+    const index = agents.findIndex((a) => a.id === numId)
+    if (index === -1) throw new ApiError(404, 'Agent introuvable')
+
+    agents.splice(index, 1)
+    versions = versions.filter((v) => v.agentId !== numId)
+    executions = executions.filter((e) => e.agentId !== numId)
+
+    auditLog.unshift({
+      id: nextAuditId++,
+      occurredAt: new Date().toISOString(),
+      actor: 'demo-admin',
+      action: 'DELETE_AGENT',
+      targetType: 'AGENT',
+      targetId: String(numId),
+      reason: reason.trim(),
+    })
+  },
+
+  async adminListAudit(page = 0, size = 20) {
+    await delay(300)
+    const start = page * size
+    const paginated = auditLog.slice(start, start + size)
+    return {
+      items: paginated.map((item) => ({ ...item })),
+      totalCount: auditLog.length,
+    }
+  },
+
+  async getM1Health() {
+    await delay(200)
     return { status: 'UP', raw: { status: 'UP', components: { db: { status: 'UP' } } } }
   },
 
   async listExecutions(agentId, { status, versionId, page = 0, size = 10 } = {}) {
-    await delay(400)
+    await delay(300)
     const numAgentId = parseInt(agentId, 10)
     let list = executions.filter((e) => e.agentId === numAgentId)
     if (status) {
@@ -583,7 +952,7 @@ export const agentMock = {
   },
 
   async getExecution(agentId, executionId) {
-    await delay(300)
+    await delay(250)
     const exec = executions.find(
       (e) => e.id === parseInt(executionId, 10) && e.agentId === parseInt(agentId, 10)
     )
@@ -592,10 +961,13 @@ export const agentMock = {
   },
 
   async listAllExecutions({ agentId, status, page = 0, size = 10, all = false } = {}) {
-    await delay(400)
+    await delay(300)
     let list = [...executions]
-    if (!all) {
-      list = list.filter((e) => e.requestedBy === 'user-alice')
+    const role = getCurrentDevRole()
+    const isAdmin = role === 'ADMIN'
+
+    if (!all || !isAdmin) {
+      list = list.filter((e) => e.requestedBy === (isAdmin ? 'demo-admin' : 'demo-user'))
     }
     if (agentId) {
       list = list.filter((e) => e.agentId === parseInt(agentId, 10))

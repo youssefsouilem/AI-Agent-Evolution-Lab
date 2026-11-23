@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { listAgents, deleteAgent, updateAgent } from '../../services/agentApi'
+import {
+  listAgents,
+  deleteAgent,
+  updateAgent,
+  adminArchiveAgent,
+  adminDeleteAgent,
+} from '../../services/agentApi'
 import { useAuth } from '../../components/common/AuthContext'
 import {
   PageHeader,
@@ -10,6 +16,7 @@ import {
   Loading,
   AgentCard,
   ConfirmDialog,
+  ReasonDialog,
   SearchInput,
   CreateCard,
 } from '../../components/agent-management/ui'
@@ -18,7 +25,7 @@ import '../../components/agent-management/agent-management.css'
 export default function AgentsListPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { isAdmin } = useAuth()
+  const { user, isAdmin, limits, usage, refreshProfile } = useAuth()
 
   const [agents, setAgents] = useState([])
   const [loading, setLoading] = useState(true)
@@ -29,6 +36,12 @@ export default function AgentsListPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [archiveConfirm, setArchiveConfirm] = useState(null)
   const [flashMessage, setFlashMessage] = useState(location.state?.flashMessage || null)
+
+  const isQuotaReached =
+    !isAdmin &&
+    limits?.maxAgents !== null &&
+    limits?.maxAgents !== undefined &&
+    (usage?.agents ?? agents.length) >= limits.maxAgents
 
   const loadAgents = useCallback(async () => {
     setLoading(true)
@@ -45,7 +58,8 @@ export default function AgentsListPage() {
 
   useEffect(() => {
     loadAgents()
-  }, [loadAgents])
+    refreshProfile()
+  }, [loadAgents, refreshProfile])
 
   useEffect(() => {
     if (location.state?.flashMessage) {
@@ -54,29 +68,39 @@ export default function AgentsListPage() {
     }
   }, [location.state])
 
-  const handleDelete = async () => {
+  const handleDelete = async (reason) => {
     if (!deleteConfirm) return
     try {
-      await deleteAgent(deleteConfirm.id)
+      if (isAdmin && (deleteConfirm.ownerId !== user?.id || reason)) {
+        await adminDeleteAgent(deleteConfirm.id, reason || 'Suppression administrative')
+      } else {
+        await deleteAgent(deleteConfirm.id)
+      }
       setAgents((prev) => prev.filter((a) => a.id !== deleteConfirm.id))
       setDeleteConfirm(null)
+      refreshProfile()
     } catch (e) {
       setError(e)
     }
   }
 
-  const handleArchive = async () => {
+  const handleArchive = async (reason) => {
     if (!archiveConfirm) return
     try {
-      await updateAgent(archiveConfirm.id, {
-        name: archiveConfirm.name,
-        description: archiveConfirm.description,
-        status: 'ARCHIVED',
-      })
+      if (isAdmin && (archiveConfirm.ownerId !== user?.id || reason)) {
+        await adminArchiveAgent(archiveConfirm.id, reason || 'Archivage administratif')
+      } else {
+        await updateAgent(archiveConfirm.id, {
+          name: archiveConfirm.name,
+          description: archiveConfirm.description,
+          status: 'ARCHIVED',
+        })
+      }
       setAgents((prev) =>
         prev.map((a) => (a.id === archiveConfirm.id ? { ...a, status: 'ARCHIVED' } : a))
       )
       setArchiveConfirm(null)
+      refreshProfile()
     } catch (e) {
       setError(e)
     }
@@ -102,8 +126,18 @@ export default function AgentsListPage() {
         title="Mes agents"
         subtitle="Créez, configurez et versionnez vos agents IA."
         action="Créer un agent"
+        actionDisabled={isQuotaReached}
+        actionTooltip={isQuotaReached ? 'Limite atteinte : supprimez un agent ou contactez un administrateur' : undefined}
         onAction={() => navigate('/agents/new')}
       />
+
+      {isQuotaReached && (
+        <div className="m1-warning" style={{ marginBottom: 20 }}>
+          <span>
+            <strong>Limite atteinte :</strong> Vous avez atteint votre quota de {limits.maxAgents} agents. Supprimez un agent existant ou contactez un administrateur pour augmenter votre limite.
+          </span>
+        </div>
+      )}
 
       {flashMessage && (
         <div className="m1-warning" style={{ marginBottom: 20 }}>
@@ -123,7 +157,11 @@ export default function AgentsListPage() {
 
       <Stats
         items={[
-          { label: 'Total des agents', value: total, caption: 'Tous vos agents' },
+          {
+            label: 'Quota agents',
+            value: isAdmin ? 'Illimité' : `${usage?.agents ?? total} / ${limits?.maxAgents ?? 5}`,
+            caption: isAdmin ? 'Rôle Administrateur' : isQuotaReached ? 'Quota maximal atteint' : 'Utilisation actuelle',
+          },
           { label: 'Agents actifs', value: active, caption: 'Prêts à être exécutés' },
           { label: 'Brouillons', value: drafts, caption: 'En cours de configuration' },
         ]}
@@ -163,13 +201,19 @@ export default function AgentsListPage() {
       ) : (
         <>
           <div className="m1-card-grid">
-            <CreateCard label="Créer un agent" onClick={() => navigate('/agents/new')} />
+            <CreateCard
+              label="Créer un agent"
+              disabled={isQuotaReached}
+              tooltip={isQuotaReached ? 'Limite atteinte : supprimez un agent ou contactez un administrateur' : undefined}
+              onClick={() => navigate('/agents/new')}
+            />
 
             {filteredAgents.map((agent) => (
               <AgentCard
                 key={agent.id}
                 agent={agent}
                 isAdmin={isAdmin}
+                isReadOnly={isAdmin && Boolean(agent.ownerId && agent.ownerId !== user?.id)}
                 onEdit={(a) => navigate(`/agents/${a.id}`)}
                 onArchive={setArchiveConfirm}
                 onDelete={setDeleteConfirm}
@@ -189,24 +233,45 @@ export default function AgentsListPage() {
       )}
 
       {deleteConfirm && (
-        <ConfirmDialog
-          title={`Supprimer l'agent "${deleteConfirm.name}" ?`}
-          message="Cette action est irréversible et supprimera également toutes ses versions et son historique."
-          confirmLabel="Supprimer"
-          onCancel={() => setDeleteConfirm(null)}
-          onConfirm={handleDelete}
-        />
+        isAdmin && deleteConfirm.ownerId !== user?.id ? (
+          <ReasonDialog
+            title={`Suppression administrative de "${deleteConfirm.name}"`}
+            message={`Cet agent appartient à "${deleteConfirm.ownerId}". Cette action est irréversible et sera enregistrée dans le journal d'audit.`}
+            confirmLabel="Supprimer définitivement"
+            onCancel={() => setDeleteConfirm(null)}
+            onConfirm={handleDelete}
+          />
+        ) : (
+          <ConfirmDialog
+            title={`Supprimer l'agent "${deleteConfirm.name}" ?`}
+            message="Cette action est irréversible et supprimera également toutes ses versions et son historique."
+            confirmLabel="Supprimer"
+            onCancel={() => setDeleteConfirm(null)}
+            onConfirm={() => handleDelete()}
+          />
+        )
       )}
 
       {archiveConfirm && (
-        <ConfirmDialog
-          title={`Archiver l'agent "${archiveConfirm.name}" ?`}
-          message="L'agent sera désactivé mais restera consultable dans la liste."
-          confirmLabel="Archiver"
-          variant="primary"
-          onCancel={() => setArchiveConfirm(null)}
-          onConfirm={handleArchive}
-        />
+        isAdmin && archiveConfirm.ownerId !== user?.id ? (
+          <ReasonDialog
+            title={`Archivage administratif de "${archiveConfirm.name}"`}
+            message={`Cet agent appartient à "${archiveConfirm.ownerId}". L'action sera consignée dans le journal d'audit.`}
+            confirmLabel="Archiver l'agent"
+            variant="primary"
+            onCancel={() => setArchiveConfirm(null)}
+            onConfirm={handleArchive}
+          />
+        ) : (
+          <ConfirmDialog
+            title={`Archiver l'agent "${archiveConfirm.name}" ?`}
+            message="L'agent sera désactivé mais restera consultable dans la liste."
+            confirmLabel="Archiver"
+            variant="primary"
+            onCancel={() => setArchiveConfirm(null)}
+            onConfirm={() => handleArchive()}
+          />
+        )
       )}
     </div>
   )
