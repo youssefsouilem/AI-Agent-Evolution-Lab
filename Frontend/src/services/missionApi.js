@@ -1,6 +1,6 @@
 import { authorizedFetch } from './authToken.js';
 const API_URL = (
-  import.meta.env?.VITE_API_URL || 'http://localhost:8083'
+  import.meta.env?.VITE_M3_API_URL || (import.meta.env.DEV ? '/m3-api' : 'http://localhost:8083')
 ).replace(/\/$/, '');
 const SETTINGS_URL = `${API_URL}/api/orchestration-settings`;
 

@@ -33,7 +33,7 @@ export default function MainLayout() {
     location.pathname.startsWith('/agent-tests') ||
     location.pathname.startsWith('/agent-history')
 
-  const isMissionRoute = location.pathname.startsWith('/missions')
+  const isMissionRoute = /^\/(missions|studio|executions|history)(\/|$)/.test(location.pathname) || /^\/admin(?:$|\/(missions|executions|settings|access)(?:\/|$))/.test(location.pathname)
   const isMonitoringRoute = location.pathname.startsWith('/monitoring')
 
   const [agentsExpanded, setAgentsExpanded] = useState(true)
@@ -46,6 +46,10 @@ export default function MainLayout() {
     if (isMissionRoute) setMissionsExpanded(true)
     if (isMonitoringRoute) setMonitoringExpanded(true)
   }, [isAgentRoute, isMissionRoute, isMonitoringRoute])
+
+  const missionLinks = isAdmin
+    ? [['/admin', 'Vue d’ensemble'], ['/admin/missions', 'Toutes les missions'], ['/admin/executions', 'Supervision des exécutions'], ['/admin/settings', 'Paramètres d’orchestration'], ['/admin/access', 'Autorisations']]
+    : [['/missions/overview', 'Accueil'], ['/missions', 'Mes missions'], ['/studio', 'Mission Studio'], ['/executions', 'Exécutions'], ['/history', 'Historique']]
 
   const isMock = import.meta.env.VITE_USE_MOCK === 'true'
 
@@ -175,26 +179,12 @@ export default function MainLayout() {
 
               {missionsExpanded && (
                 <div className="m6-sub-nav">
-                  <div className="m6-sub-item-disabled">
-                    <span>Accueil</span>
-                    <span className="m6-pill-badge">Bientôt</span>
-                  </div>
-                  <div className="m6-sub-item-disabled">
-                    <span>Mes missions</span>
-                    <span className="m6-pill-badge">Bientôt</span>
-                  </div>
-                  <div className="m6-sub-item-disabled">
-                    <span>Mission Studio</span>
-                    <span className="m6-pill-badge">Bientôt</span>
-                  </div>
-                  <div className="m6-sub-item-disabled">
-                    <span>Exécutions</span>
-                    <span className="m6-pill-badge">Bientôt</span>
-                  </div>
-                  <div className="m6-sub-item-disabled">
-                    <span>Historique</span>
-                    <span className="m6-pill-badge">Bientôt</span>
-                  </div>
+                  {missionLinks.map(([path, label]) => (
+                    <NavLink key={path} to={path} end onClick={() => setMobileOpen(false)}
+                      className={({ isActive }) => isActive ? 'active' : ''}>
+                      <span>{label}</span>
+                    </NavLink>
+                  ))}
                 </div>
               )}
             </div>
@@ -386,7 +376,7 @@ export default function MainLayout() {
       </aside>
 
       {/* Main page content */}
-      <main className="m6-main">
+      <main className={`m6-main ${isMissionRoute ? 'm6-main-missions' : ''}`}>
         {toast && (
           <div className="m6-toast" role="status">
             <span>{toast}</span>

@@ -6,11 +6,11 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
-import { checkExecutionMetrics } from "../../services/monitoringApi";
+import { checkExecutionMetrics } from "../../services/missionMonitoringApi";
 
 const severityLabels = {
   NORMAL: "Normal",
-  MINOR: "À vérifier",
+  MINOR: "Ã€ vÃ©rifier",
   CRITICAL: "Critique",
 };
 
@@ -73,26 +73,26 @@ export default function ExecutionDiagnostic({ execution, onDiagnostic }) {
         ? severity?.toLowerCase()
         : "waiting";
   const title = failure
-    ? "Contrôle indisponible"
+    ? "ContrÃ´le indisponible"
     : loading
-      ? "Contrôle en cours"
+      ? "ContrÃ´le en cours"
       : diagnostic
         ? diagnostic.simulated
-          ? "Diagnostic simulé"
+          ? "Diagnostic simulÃ©"
           : diagnostic.blocking
-            ? "Diffusion bloquée"
+            ? "Diffusion bloquÃ©e"
             : severity === "MINOR"
-              ? "Vérification recommandée"
-              : "Aucun blocage signalé"
-        : "Non évalué";
+              ? "VÃ©rification recommandÃ©e"
+              : "Aucun blocage signalÃ©"
+        : "Non Ã©valuÃ©";
   return (
     <section
       className={`run-box execution-diagnostic ${tone}`}
-      aria-label="Diagnostic de l’exécution"
+      aria-label="Diagnostic de lâ€™exÃ©cution"
     >
       <div className="execution-diagnostic-heading">
         <h3>
-          <ShieldCheck size={19} /> Diagnostic de l’exécution
+          <ShieldCheck size={19} /> Diagnostic de lâ€™exÃ©cution
         </h3>
         <span className={`diagnostic-badge ${tone}`}>
           {failure
@@ -101,7 +101,7 @@ export default function ExecutionDiagnostic({ execution, onDiagnostic }) {
               ? "En cours"
               : diagnostic
                 ? severityLabels[severity] || severity
-                : "Non évalué"}
+                : "Non Ã©valuÃ©"}
         </span>
       </div>
       <div
@@ -121,19 +121,19 @@ export default function ExecutionDiagnostic({ execution, onDiagnostic }) {
             {failure ||
               (diagnostic
                 ? diagnostic.simulated
-                  ? "Exemple de test : cette réponse ne constitue pas un contrôle réel."
+                  ? "Exemple de test : cette rÃ©ponse ne constitue pas un contrÃ´le rÃ©el."
                   : diagnostic.blocking
-                    ? "Une anomalie bloquante a été signalée. Le résultat ne doit pas être diffusé."
-                    : "Le diagnostic a été reçu du service Monitoring."
+                    ? "Une anomalie bloquante a Ã©tÃ© signalÃ©e. Le rÃ©sultat ne doit pas Ãªtre diffusÃ©."
+                    : "Le diagnostic a Ã©tÃ© reÃ§u du service Monitoring."
                 : !execution
-                  ? "Lancez une exécution pour suivre son contrôle."
+                  ? "Lancez une exÃ©cution pour suivre son contrÃ´le."
                   : !terminal
-                    ? "Le contrôle sera disponible après l’exécution des étapes."
+                    ? "Le contrÃ´le sera disponible aprÃ¨s lâ€™exÃ©cution des Ã©tapes."
                     : execution.metricsSource !== "MEASURED"
                       ? execution.metricsSource === "SIMULATED"
-                        ? "Cette exécution utilise des agents simulés. Ses métriques ne sont pas envoyées au service Monitoring."
-                        : "Les métriques mesurées ne sont pas encore disponibles."
-                      : "Aucun diagnostic reçu pour cette exécution.")}
+                        ? "Cette exÃ©cution utilise des agents simulÃ©s. Ses mÃ©triques ne sont pas envoyÃ©es au service Monitoring."
+                        : "Les mÃ©triques mesurÃ©es ne sont pas encore disponibles."
+                      : "Aucun diagnostic reÃ§u pour cette exÃ©cution.")}
           </p>
         </div>
       </div>
@@ -144,7 +144,7 @@ export default function ExecutionDiagnostic({ execution, onDiagnostic }) {
             <dd>{diagnostic.reason || "Aucun motif fourni"}</dd>
           </div>
           <div>
-            <dt>Blocage{diagnostic.simulated ? " simulé" : ""}</dt>
+            <dt>Blocage{diagnostic.simulated ? " simulÃ©" : ""}</dt>
             <dd>{diagnostic.blocking ? "Oui" : "Non"}</dd>
           </div>
           <div>
@@ -157,9 +157,9 @@ export default function ExecutionDiagnostic({ execution, onDiagnostic }) {
         <button className="btn btn-outline" disabled={loading} onClick={check}>
           <RefreshCw size={15} />
           {loading
-            ? "Vérification…"
+            ? "VÃ©rificationâ€¦"
             : failure
-              ? "Réessayer le contrôle"
+              ? "RÃ©essayer le contrÃ´le"
               : "Actualiser le diagnostic"}
         </button>
       )}
