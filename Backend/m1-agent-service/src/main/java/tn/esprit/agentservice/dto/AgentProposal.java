@@ -4,6 +4,7 @@ public record AgentProposal(
         String name,
         String description,
         String systemPrompt,
+        String provider,
         String model,
         double temperature,
         int maxTokens,

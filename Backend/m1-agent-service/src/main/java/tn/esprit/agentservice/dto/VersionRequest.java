@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Pattern;
 import java.util.Map;
 
 public record VersionRequest(
+        String provider,
         String model,
         String systemPrompt,
         String changeLog,
@@ -17,6 +18,18 @@ public record VersionRequest(
         Long studyId,
         Map<String, Object> params
 ) {
+    public VersionRequest(
+            String model,
+            String systemPrompt,
+            String changeLog,
+            ConfigurationDto configuration,
+            Long basedOnVersionId,
+            String source,
+            Long studyId,
+            Map<String, Object> params
+    ) {
+        this(null, model, systemPrompt, changeLog, configuration, basedOnVersionId, source, studyId, params);
+    }
 
     @AssertTrue(message = "model, systemPrompt et configuration sont requis pour une nouvelle version UI.")
     @JsonIgnore

@@ -47,6 +47,16 @@ public class OpenApiConfig {
     public OpenApiCustomizer standardErrorResponses() {
         return openApi -> {
             openApi.getComponents().addSchemas("ErrorResponse", errorResponseSchema());
+            setPropertyMetadata(openApi, "VersionRequest", "provider",
+                    "Fournisseur du catalogue; à préciser lorsque le modèle est ambigu.",
+                    List.of("openai", "gemini", "groq", "openrouter"));
+            setPropertyMetadata(openApi, "VersionResponse", "provider",
+                    "Fournisseur stocké pour cette version.", null);
+            setPropertyMetadata(openApi, "ExecutionDetail", "provider",
+                    "Fournisseur utilisé pour cette exécution.", null);
+            setPropertyMetadata(openApi, "LlmProviderCheckResponse", "errorCode",
+                    "Code d'erreur classifié, ou null en cas de succès.",
+                    Arrays.stream(ErrorCode.values()).map(Enum::name).toList());
             openApi.getPaths().forEach((path, pathItem) -> pathItem.readOperationsMap().forEach((method, operation) -> {
                 if (method == io.swagger.v3.oas.models.PathItem.HttpMethod.POST
                         && "/api/agents/{id}/execute".equals(path)) {
@@ -87,6 +97,25 @@ public class OpenApiConfig {
                 }
             }));
         };
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private void setPropertyMetadata(
+            OpenAPI openApi, String schemaName, String propertyName, String description, List<String> values
+    ) {
+        Schema<?> schema = openApi.getComponents().getSchemas().get(schemaName);
+        if (schema == null || schema.getProperties() == null) {
+            return;
+        }
+        Schema<?> property = (Schema<?>) schema.getProperties().get(propertyName);
+        if (property == null) {
+            return;
+        }
+        property.setDescription(description);
+        if (values != null) {
+            ((Schema) property).setEnum(values);
+            property.setNullable(true);
+        }
     }
 
     private void setRequestPropertyBounds(

@@ -62,6 +62,7 @@ public class AgentExecution {
     @Column(columnDefinition = "CLOB")
     private String toolCalls;
     private String modelUsed;
+    private String provider;
 
     @PrePersist
     void onCreate() {

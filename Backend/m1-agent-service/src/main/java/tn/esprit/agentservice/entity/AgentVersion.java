@@ -51,6 +51,9 @@ public class AgentVersion {
     @Column(nullable = false)
     private String model;
 
+    @Column
+    private String provider;
+
     @Column(length = 10000)
     private String systemPrompt;
 

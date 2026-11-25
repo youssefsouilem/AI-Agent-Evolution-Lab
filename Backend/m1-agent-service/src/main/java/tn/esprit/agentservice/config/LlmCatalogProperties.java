@@ -24,6 +24,8 @@ public class LlmCatalogProperties {
         private String label;
         private boolean enabled;
         private String apiKeyEnv;
+        private String baseUrl;
+        private boolean supportsTools;
         private List<Model> models = new ArrayList<>();
 
         public String getId() { return id; }
@@ -34,6 +36,10 @@ public class LlmCatalogProperties {
         public void setEnabled(boolean enabled) { this.enabled = enabled; }
         public String getApiKeyEnv() { return apiKeyEnv; }
         public void setApiKeyEnv(String apiKeyEnv) { this.apiKeyEnv = apiKeyEnv; }
+        public String getBaseUrl() { return baseUrl; }
+        public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
+        public boolean isSupportsTools() { return supportsTools; }
+        public void setSupportsTools(boolean supportsTools) { this.supportsTools = supportsTools; }
         public List<Model> getModels() { return models; }
         public void setModels(List<Model> models) { this.models = models == null ? new ArrayList<>() : models; }
     }

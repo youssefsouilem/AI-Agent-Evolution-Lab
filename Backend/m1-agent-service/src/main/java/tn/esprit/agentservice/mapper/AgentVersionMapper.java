@@ -16,6 +16,7 @@ public class AgentVersionMapper {
                 version.getId(),
                 version.getAgent().getId(),
                 version.getVersionNumber(),
+                version.getProvider(),
                 version.getModel(),
                 version.getSystemPrompt(),
                 version.getChangeLog(),

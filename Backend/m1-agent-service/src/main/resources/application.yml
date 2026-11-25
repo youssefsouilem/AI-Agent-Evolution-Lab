@@ -44,7 +44,7 @@ spring:
       mandatory: true
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY:missing-key}
+      api-key: missing-key
       chat:
         options:
           model: gpt-4o-mini
@@ -80,7 +80,10 @@ management:
 
 logging:
   level:
-    tn.esprit.agentservice: DEBUG
+    tn.esprit.agentservice: INFO
+    org.springframework.web.client: OFF
+    org.springframework.ai.openai: OFF
+    org.apache.hc.client5.http.wire: OFF
 
 app:
   events:
@@ -105,20 +108,43 @@ m1:
         label: OpenAI
         enabled: true
         api-key-env: OPENAI_API_KEY
+        base-url: https://api.openai.com/v1
+        supports-tools: true
         models:
           - id: gpt-4o-mini
             label: GPT-4o mini
             recommended: true
-      - id: anthropic
-        label: Anthropic
-        enabled: true
-        api-key-env: ANTHROPIC_API_KEY
-        models: []
       - id: gemini
         label: Google Gemini
         enabled: true
         api-key-env: GEMINI_API_KEY
-        models: []
+        base-url: https://generativelanguage.googleapis.com/v1beta/openai
+        supports-tools: true
+        models:
+          - id: gemini-2.0-flash
+            label: Gemini 2.0 Flash
+            recommended: true
+      - id: groq
+        label: Groq
+        enabled: true
+        api-key-env: GROQ_API_KEY
+        base-url: https://api.groq.com/openai/v1
+        supports-tools: true
+        models:
+          - id: llama-3.3-70b-versatile
+            label: Llama 3.3 70B Versatile
+            recommended: true
+      - id: openrouter
+        label: OpenRouter
+        enabled: true
+        api-key-env: OPENROUTER_API_KEY
+        base-url: https://openrouter.ai/api/v1
+        supports-tools: true
+        models:
+          - id: openai/gpt-4o-mini
+            label: GPT-4o mini (OpenRouter)
+            recommended: true
+    check-max-per-hour: 20
   assist:
     max-per-hour: 10
   events:

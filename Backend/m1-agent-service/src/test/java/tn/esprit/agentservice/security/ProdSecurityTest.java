@@ -67,8 +67,31 @@ class ProdSecurityTest {
 
     @Test
     void protectedRouteRejectsMissingToken() throws Exception {
-        mockMvc.perform(get("/api/agents")).andExpect(status().isUnauthorized());
-        mockMvc.perform(get("/api/me")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/agents"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.status").value(401))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.error").value("Unauthorized"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.errorCode").value("UNAUTHENTICATED"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.message").value("Authentification requise."))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.path").value("/api/agents"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.timestamp").exists());
+        mockMvc.perform(get("/api/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.errorCode").value("UNAUTHENTICATED"));
+    }
+
+    @Test
+    void productionKeepsHealthAndApiDocumentationPublic() throws Exception {
+        mockMvc.perform(get("/actuator/health")).andExpect(status().isOk());
+        mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk());
+        mockMvc.perform(get("/swagger-ui/index.html")).andExpect(status().isOk());
     }
 
     @Test
@@ -76,7 +99,11 @@ class ProdSecurityTest {
         mockMvc.perform(get("/api/agents")
                         .header("X-Dev-User", "root")
                         .header("X-Dev-Role", "ADMIN"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.errorCode").value("UNAUTHENTICATED"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.path").value("/api/agents"));
     }
 
     @Test
@@ -266,7 +293,11 @@ class ProdSecurityTest {
     void nonAdminIsForbiddenFromOutboxAndAdminCanListAllAgents() throws Exception {
         mockMvc.perform(get("/api/admin/outbox")
                         .with(jwt().jwt(token -> token.subject("alice"))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.errorCode").value("ACCESS_DENIED"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.message").value("Accès interdit."));
 
         mockMvc.perform(get("/api/agents?all=true")
                         .with(jwt().jwt(token -> token.subject("root"))

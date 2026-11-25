@@ -4,6 +4,7 @@ import feign.FeignException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.stereotype.Component;
+import tn.esprit.agentservice.exception.ProviderNotConfiguredException;
 
 import java.io.IOException;
 import java.net.ConnectException;
@@ -14,6 +15,10 @@ import java.util.concurrent.TimeoutException;
 public class LlmFailureClassifier {
     public Failure classify(Throwable failure) {
         for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ProviderNotConfiguredException) {
+                return new Failure("PROVIDER_NOT_CONFIGURED", HttpStatus.BAD_GATEWAY,
+                        "Le fournisseur du modèle n'est pas configuré.");
+            }
             int status = status(cause);
             if (status == 401 || status == 403) {
                 return new Failure("PROVIDER_AUTH_FAILED", HttpStatus.BAD_GATEWAY,
@@ -46,6 +51,9 @@ public class LlmFailureClassifier {
     }
 
     private int status(Throwable cause) {
+        if (cause instanceof OpenAiCompatibleLlmGateway.ProviderHttpException exception) {
+            return exception.statusCode();
+        }
         if (cause instanceof HttpStatusCodeException exception) {
             return exception.getStatusCode().value();
         }

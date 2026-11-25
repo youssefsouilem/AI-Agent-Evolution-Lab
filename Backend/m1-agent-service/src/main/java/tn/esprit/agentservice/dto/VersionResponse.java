@@ -6,6 +6,7 @@ public record VersionResponse(
         Long id,
         Long agentId,
         int versionNumber,
+        String provider,
         String model,
         String systemPrompt,
         String changeLog,

@@ -8,24 +8,32 @@ Development (simulated identity; never evidence of security):
 
 ```powershell
 $env:SPRING_PROFILES_ACTIVE = "dev"
-$env:OPENAI_API_KEY = "your-key"
 $env:M1_DEMO_SEED = "true"
 .\mvnw.cmd spring-boot:run
 ```
 
-Production uses a stateless Keycloak JWT resource server. Configure `KEYCLOAK_ISSUER_URI` to the realm issuer and set the variables below before starting the container. `OPENAI_API_KEY` is injected at runtime only; do not put it in a file or image.
+Production uses a stateless Keycloak JWT resource server. Configure `KEYCLOAK_ISSUER_URI` to the realm issuer and set provider keys in the host/container environment before starting the service. Keys are read from the environment for provider calls; never add a key to source files, application YAML, HTTP examples, logs, or container images.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `OPENAI_API_KEY` | `missing-key` | OpenAI key; missing/placeholder makes its models unavailable (`MODEL_NOT_AVAILABLE`); assist reports `PROVIDER_NOT_CONFIGURED` |
+| `OPENAI_API_KEY` | unset | OpenAI; required for OpenAI models |
+| `GEMINI_API_KEY` | unset | Google Gemini OpenAI-compatible endpoint |
+| `GROQ_API_KEY` | unset | Groq OpenAI-compatible endpoint |
+| `OPENROUTER_API_KEY` | unset | OpenRouter OpenAI-compatible endpoint |
 | `KEYCLOAK_ISSUER_URI` | `http://localhost:8180/realms/ai-lab` | JWT issuer |
 | `RABBITMQ_HOST` | `localhost` | RabbitMQ host |
 | `TOOLS_SERVICE_URL` | `http://localhost:8082` | M2 tool service |
 | `EUREKA_ENABLED` | `false` | Enable Eureka registration |
 | `M1_DEMO_SEED` | `false` | Seed three dev demo agents |
-| `M1_CORS_ALLOWED_ORIGINS` | empty | Comma-separated browser origins allowed to call `/api/**` |
+| `M1_CORS_ALLOWED_ORIGINS` | empty outside dev; Vite origin in dev | Comma-separated browser origins allowed to call `/api/**` |
 
-Other useful settings include `m1.outbox.poll-interval-ms` (2000), `m1.outbox.max-attempts` (10), `m1.outbox.confirm-timeout-ms` (5000), `m1.events.legacy-aliases` (temporary `true`), `m1.executions.stale-after-minutes` (5), `m1.quota.user-max-agents` (5), `m1.llm.strict-model-check` (`true`), and `m1.assist.max-per-hour` (10). `timeoutSeconds` is limited to 5–120 seconds. CORS is configured for `/api/**`; it is disabled for browser origins by default until `M1_CORS_ALLOWED_ORIGINS` is set, and then exposes `X-Total-Count`. The non-secret `m1.llm.providers` catalogue is in `application.yml`: providers use `id`, `label`, `enabled`, `apiKeyEnv`, and `models`; models use `id`, `label`, and `recommended`. `OPENAI_API_KEY` is currently the only wired provider key. Anthropic and Gemini are placeholders; their key environment-variable names are `ANTHROPIC_API_KEY` and `GEMINI_API_KEY`. Each `apiKeyEnv` stores a variable name, never a key value.
+Other useful settings include `m1.outbox.poll-interval-ms` (2000), `m1.outbox.max-attempts` (10), `m1.outbox.confirm-timeout-ms` (5000), `m1.events.legacy-aliases` (temporary `true`), `m1.executions.stale-after-minutes` (5), `m1.quota.user-max-agents` (5), `m1.llm.strict-model-check` (`true`), `m1.llm.check-max-per-hour` (20), and `m1.assist.max-per-hour` (10). `timeoutSeconds` is limited to 5–120 seconds. CORS is configured for `/api/**`; it exposes `X-Total-Count`.
+
+### Provider keys in IntelliJ
+
+Set keys only in the IntelliJ run configuration's **Environment variables** field: open **Run → Edit Configurations…**, select the M1 Spring Boot configuration, and enter only the provider keys you use (for example `GROQ_API_KEY=<your key>;GEMINI_API_KEY=<your key>`). Keep real values in your local IDE configuration or secret manager, not in this project, `.env` files, YAML, `requests.http`, or logs. Do not share or commit the run configuration. Remove a key to make that provider show as unavailable.
+
+The non-secret `m1.llm.providers` catalogue is configured in `application.yml`: each provider defines its id, label, enabled flag, key-variable name, OpenAI-compatible base URL, tool support, and model list. `GET /api/llm/models` returns provider ids, availability and public model metadata only. A version stores both provider and model; provide both when creating a version if model ids collide. Omitted providers are inferred only when exactly one available provider offers that model. Supported catalogue ids are `openai`, `gemini`, `groq`, and `openrouter`; this configuration and fake-server tests do not establish that a real provider account, key, model entitlement, or live endpoint works.
 
 ## Keycloak token
 
@@ -85,6 +93,7 @@ Collections are plain JSON arrays. History arrays include `X-Total-Count`.
 | `POST /api/admin/agents/{id}/archive` | 204 | 400, 401, 403, 404 |
 | `DELETE /api/admin/agents/{id}?reason=` | 204 | 400, 401, 403, 404 |
 | `GET /api/admin/audit?page=0&size=20` | 200 | 400, 401, 403 |
+| `POST /api/admin/llm/{provider}/check` | 200 | 401, 403, 422, 429 |
 | `GET /api/admin/outbox` | 200 | 401, 403 |
 | `POST /api/admin/outbox/{uuid}/retry` | 204 | 401, 403, 404, 409 |
 | `GET /actuator/health` | 200 | — |
@@ -93,7 +102,7 @@ Deleting an agent deletes its stored execution history.
 
 ## Execution errors
 
-`AGENT_QUOTA_EXCEEDED` is 403 and includes `limit` and `usage`; `ADMIN_READ_ONLY` is 403; `MODEL_NOT_AVAILABLE` is 422. `RATE_LIMITED` is 429; `PROVIDER_NOT_CONFIGURED` and `ASSIST_INVALID_OUTPUT` are 502. Existing execution errors `PROVIDER_NOT_CONFIGURED`, `PROVIDER_AUTH_FAILED`, `PROVIDER_RATE_LIMITED`, `MODEL_NOT_AVAILABLE`, `PROVIDER_UNAVAILABLE`, `EMPTY_RESPONSE`, `TOOL_SERVICE_UNAVAILABLE` use 502; `TIMEOUT` and `TOOL_TIMEOUT` use 504; `TOOL_LIMIT_EXCEEDED` uses 422; unexpected errors use `INTERNAL_ERROR` (500). Execution failures return a structured `execution` object; unknown token metrics are `null`. Returned/stored error messages are sanitized.
+`AGENT_QUOTA_EXCEEDED` is 403 and includes `limit` and `usage`; `ADMIN_READ_ONLY` is 403; `MODEL_NOT_AVAILABLE` and `MODEL_AMBIGUOUS` are 422. `RATE_LIMITED` is 429; `PROVIDER_NOT_CONFIGURED` and `ASSIST_INVALID_OUTPUT` are 502. Execution errors `PROVIDER_NOT_CONFIGURED`, `PROVIDER_AUTH_FAILED`, `PROVIDER_RATE_LIMITED`, `MODEL_NOT_AVAILABLE`, `PROVIDER_UNAVAILABLE`, `EMPTY_RESPONSE`, `TOOL_SERVICE_UNAVAILABLE` use 502; `TIMEOUT` and `TOOL_TIMEOUT` use 504; `TOOL_LIMIT_EXCEEDED` uses 422; unexpected errors use `INTERNAL_ERROR` (500). Execution failures return a structured `execution` object; unknown token metrics are `null`. Returned/stored error messages are sanitized. The provider check returns only the provider, recommended model, success flag, latency, and classified error code; its audit contains no response body or key.
 
 ## Durable events
 
@@ -103,7 +112,7 @@ The `events` health contributor reports pending/failed counts; `DOWN` means fail
 
 ## Tests and OpenAPI export
 
-Run the suite with `.\mvnw.cmd clean verify`. The real-provider smoke test is opt-in via `OPENAI_API_KEY` and is skipped in ordinary builds.
+Run the suite with `.\mvnw.cmd clean verify`. The real-provider smoke test remains excluded unless both `M1_LLM_SMOKE_OPENAI=true` and `OPENAI_API_KEY` are present. Normal tests use a local fake OpenAI-compatible server and test-only placeholder values.
 
 To re-export the OpenAPI contract after starting the service:
 
@@ -116,7 +125,7 @@ $required = @('/api/agents', '/api/agents/{id}', '/api/agents/{id}/versions',
   '/api/agents/{id}/executions/{executionId}', '/api/agents/{id}/stats',
   '/api/executions', '/api/me', '/api/llm/models', '/api/agents/assist',
   '/api/admin/users', '/api/admin/users/{ownerId}/quota', '/api/admin/agents/{id}/archive',
-  '/api/admin/agents/{id}', '/api/admin/audit', '/api/admin/outbox',
+  '/api/admin/agents/{id}', '/api/admin/audit', '/api/admin/llm/{provider}/check', '/api/admin/outbox',
   '/api/admin/outbox/{id}/retry', '/actuator/health')
 $required | ForEach-Object { if (-not $spec.paths.PSObject.Properties.Name.Contains($_)) { throw "Missing route: $_" } }
 ```
@@ -125,4 +134,4 @@ Review the generated JSON, run the path check above, then keep the exported file
 
 ## Add a provider
 
-`LlmGateway` is the extension point; `SpringAiLlmGateway` is the current Spring AI/OpenAI implementation. Before promising Gemini, Grok, or another provider, the team must decide whether it is in scope and verify its supported Spring AI integration and feature parity.
+`OpenAiCompatibleLlmGateway` routes requests for the configured OpenAI-compatible providers, while `ProviderRouter` selects the gateway from the version's provider id. Add provider metadata and models under `m1.llm.providers` in `application.yml`; keep only the environment-variable name there, never the key. Confirm the provider's endpoint compatibility and tool support before enabling it. The local fake-server tests verify request routing and secret handling, not live provider availability or account entitlements.

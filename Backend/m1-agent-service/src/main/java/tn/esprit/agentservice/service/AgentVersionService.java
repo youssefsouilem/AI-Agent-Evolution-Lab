@@ -86,8 +86,8 @@ public class AgentVersionService {
         AgentVersion version = request.basedOnVersionId() == null
                 ? createUiVersion(agent, request, nextVersion)
                 : createM5Version(agent, request, nextVersion);
-        if (modelCatalog != null && modelCatalog.strictModelCheck()) {
-            modelCatalog.requireAvailable(version.getModel());
+        if (modelCatalog != null) {
+            version.setProvider(modelCatalog.resolveProvider(version.getProvider(), version.getModel()));
         }
         AgentVersion savedVersion = versionRepository.save(version);
         publishUpdatedEvent(agentId, savedVersion.getId(), actor);
@@ -201,6 +201,7 @@ public class AgentVersionService {
         return AgentVersion.builder()
                 .agent(agent)
                 .versionNumber(versionNumber)
+                .provider(request.provider())
                 .model(request.model())
                 .systemPrompt(request.systemPrompt())
                 .changeLog(request.changeLog())
@@ -226,6 +227,7 @@ public class AgentVersionService {
         return AgentVersion.builder()
                 .agent(agent)
                 .versionNumber(versionNumber)
+                .provider(baseVersion.getProvider())
                 .model(baseVersion.getModel())
                 .systemPrompt(baseVersion.getSystemPrompt())
                 .changeLog(changeLog)

@@ -27,7 +27,9 @@ import tn.esprit.agentservice.dto.AdminQuotaResponse;
 import tn.esprit.agentservice.dto.AdminQuotaRequest;
 import tn.esprit.agentservice.dto.AdminReasonRequest;
 import tn.esprit.agentservice.dto.AdminUserSummary;
+import tn.esprit.agentservice.dto.LlmProviderCheckResponse;
 import tn.esprit.agentservice.service.AdminManagementService;
+import tn.esprit.agentservice.service.LlmProviderCheckService;
 
 import java.util.List;
 
@@ -37,9 +39,25 @@ import java.util.List;
 @Tag(name = "Administration", description = "Modération, quotas et journal administratif")
 public class AdminManagementController {
     private final AdminManagementService admin;
+    private final LlmProviderCheckService providerChecks;
 
-    public AdminManagementController(AdminManagementService admin) {
+    public AdminManagementController(AdminManagementService admin, LlmProviderCheckService providerChecks) {
         this.admin = admin;
+        this.providerChecks = providerChecks;
+    }
+
+    @PostMapping("/llm/{provider}/check")
+    @Operation(summary = "Vérifier la disponibilité d'un fournisseur LLM")
+    @ApiResponse(responseCode = "200", description = "Résultat du test fournisseur")
+    @ApiResponse(responseCode = "401", description = "Authentification requise")
+    @ApiResponse(responseCode = "403", description = "Rôle administrateur requis")
+    @ApiResponse(responseCode = "422", description = "Fournisseur ou modèle indisponible")
+    @ApiResponse(responseCode = "429", description = "Limite de vérifications atteinte")
+    public LlmProviderCheckResponse checkProvider(
+            @PathVariable String provider,
+            Authentication authentication
+    ) {
+        return providerChecks.check(provider, CurrentUser.from(authentication));
     }
 
     @GetMapping("/users")

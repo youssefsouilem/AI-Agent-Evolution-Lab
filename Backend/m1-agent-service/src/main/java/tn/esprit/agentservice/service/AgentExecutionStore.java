@@ -36,6 +36,7 @@ public class AgentExecutionStore {
             Long agentId,
             Long versionId,
             int versionNumber,
+            String provider,
             String requestedBy,
             String requestedByRole,
             String input,
@@ -48,6 +49,7 @@ public class AgentExecutionStore {
         execution.setAgentId(agentId);
         execution.setVersionId(versionId);
         execution.setVersionNumber(versionNumber);
+        execution.setProvider(provider);
         execution.setRequestedBy(requestedBy);
         execution.setRequestedByRole(requestedByRole);
         execution.setInput(input);

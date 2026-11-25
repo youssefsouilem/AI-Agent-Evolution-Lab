@@ -62,6 +62,14 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.UNPROCESSABLE_ENTITY, exception.getMessage(), request, "MODEL_NOT_AVAILABLE", null, null);
     }
 
+    @ExceptionHandler(ModelAmbiguousException.class)
+    public ResponseEntity<ApiError> handleAmbiguousModel(
+            ModelAmbiguousException exception,
+            HttpServletRequest request
+    ) {
+        return error(HttpStatus.UNPROCESSABLE_ENTITY, exception.getMessage(), request, "MODEL_AMBIGUOUS", null, null);
+    }
+
     @ExceptionHandler(ProviderNotConfiguredException.class)
     public ResponseEntity<ApiError> handleProviderNotConfigured(
             ProviderNotConfiguredException exception,

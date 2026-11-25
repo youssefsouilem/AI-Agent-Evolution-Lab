@@ -40,7 +40,8 @@ public class AgentVersionController {
     @ApiResponse(responseCode = "201", description = "Version créée")
     @ApiResponse(responseCode = "400", description = "Corps invalide")
     @ApiResponse(responseCode = "404", description = "Agent ou version de référence introuvable")
-    @ApiResponse(responseCode = "422", description = "Paramètres invalides ou modèle indisponible")
+    @ApiResponse(responseCode = "422", description = "Paramètres invalides, modèle indisponible (MODEL_NOT_AVAILABLE) "
+            + "ou fournisseur requis pour un modèle ambigu (MODEL_AMBIGUOUS)")
     @ApiResponse(responseCode = "403", description = "Administrateur en lecture seule sur cet agent")
     public VersionResponse create(
             @PathVariable Long id,

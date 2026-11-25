@@ -112,7 +112,7 @@ public class AgentExecutionHistoryService {
                 row.getErrorMessage(), row.getStatus(), row.getOverrides(), row.getAppliedSettings(),
                 row.getStartedAt(), row.getFinishedAt(), row.getDurationMs(), row.getPromptTokens(),
                 row.getCompletionTokens(), row.getTotalTokens(), row.getToolCallCount(), row.getToolCalls(),
-                row.getModelUsed());
+                row.getProvider(), row.getModelUsed());
     }
 
     public record HistoryPage(List<ExecutionSummary> items, long total) { }

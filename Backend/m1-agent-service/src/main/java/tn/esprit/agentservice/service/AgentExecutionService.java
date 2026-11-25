@@ -53,7 +53,6 @@ public class AgentExecutionService {
     private final AgentExecutionStore store;
     private final ObjectMapper objectMapper;
     private final ExecutorService executionExecutor;
-    private final String apiKey;
     private final AgentAccessPolicy accessPolicy;
     private final ModelCatalogService modelCatalog;
     private final ProviderRouter providerRouter;
@@ -69,10 +68,10 @@ public class AgentExecutionService {
             AgentExecutionStore store,
             ObjectMapper objectMapper,
             ExecutorService executionExecutor,
-            @Value("${spring.ai.openai.api-key:missing-key}") String apiKey
+            String ignoredStartupKey
     ) {
         this(agentService, versionService, versionRepository, toolProvider, catalog, llmGateway,
-                failureClassifier, store, objectMapper, executionExecutor, apiKey,
+                failureClassifier, store, objectMapper, executionExecutor, ignoredStartupKey,
                 new AgentAccessPolicy(), null, null);
     }
 
@@ -88,7 +87,7 @@ public class AgentExecutionService {
             AgentExecutionStore store,
             ObjectMapper objectMapper,
             ExecutorService executionExecutor,
-            @Value("${spring.ai.openai.api-key:missing-key}") String apiKey,
+            @Value("unused") String ignoredStartupKey,
             AgentAccessPolicy accessPolicy,
             ModelCatalogService modelCatalog,
             ProviderRouter providerRouter
@@ -103,7 +102,6 @@ public class AgentExecutionService {
         this.store = store;
         this.objectMapper = objectMapper;
         this.executionExecutor = executionExecutor;
-        this.apiKey = apiKey;
         this.accessPolicy = accessPolicy;
         this.modelCatalog = modelCatalog;
         this.providerRouter = providerRouter;
@@ -121,9 +119,8 @@ public class AgentExecutionService {
                                 "Aucune version active n'est disponible pour cet agent."
                         ))
                 : versionService.requireVersion(agentId, request.versionId());
-        if (modelCatalog != null && modelCatalog.strictModelCheck()) {
-            modelCatalog.requireAvailable(version.getModel());
-        }
+        String providerId = modelCatalog == null ? version.getProvider()
+                : modelCatalog.resolveProvider(version.getProvider(), version.getModel());
         AgentConfiguration storedConfiguration = version.getConfiguration();
         if (storedConfiguration == null) {
             throw new InvalidConfigurationException("La version sélectionnée ne possède pas de configuration.");
@@ -142,7 +139,8 @@ public class AgentExecutionService {
         String contextJson = request.context() == null ? null : request.context().toString();
         String userMessage = userMessage(request);
 
-        var execution = store.start(agentId, version.getId(), version.getVersionNumber(), user.id(), user.role(),
+        var execution = store.start(agentId, version.getId(), version.getVersionNumber(), providerId,
+                user.id(), user.role(),
                 request.input(), contextJson, request.overrides(), appliedSettings, version.getModel());
         long startNanos = System.nanoTime();
         ToolCallRecorder recorder = new ToolCallRecorder();
@@ -158,11 +156,6 @@ public class AgentExecutionService {
         ExecutionStatus finalStatus = ExecutionStatus.FAILED;
         Future<LlmResult> call = null;
         try {
-            if (apiKey == null || apiKey.isBlank() || "missing-key".equalsIgnoreCase(apiKey.trim())) {
-                throw failed("PROVIDER_NOT_CONFIGURED", HttpStatus.BAD_GATEWAY,
-                        "Le fournisseur du modèle n'est pas configuré.", execution.getId(), version.getId(),
-                        0L, null, null, null, 0, null);
-            }
             List<org.springframework.ai.tool.ToolCallback> callbacks = allowedCallbacks(
                     configuration, version.getId(), recorder
             );
@@ -171,6 +164,7 @@ public class AgentExecutionService {
                     .map(callback -> limitTurns(callback, configuration.getMaxTurns(), calls, recorder))
                     .toList();
             LlmRequest llmRequest = new LlmRequest(
+                    providerId,
                     version.getModel(),
                     styledSystemPrompt(version.getSystemPrompt(), configuration.getStyle()),
                     userMessage,

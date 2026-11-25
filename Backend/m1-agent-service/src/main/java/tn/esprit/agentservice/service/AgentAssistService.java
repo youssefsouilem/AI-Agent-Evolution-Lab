@@ -55,7 +55,8 @@ public class AgentAssistService {
         if (!models.hasAnyAvailableProvider()) {
             throw new ProviderNotConfiguredException();
         }
-        String model = models.recommendedAvailableModel();
+        ModelCatalogService.RecommendedModel selected = models.recommendedAvailableModelProvider();
+        String model = selected.model();
         String encodedDescription;
         try {
             encodedDescription = objectMapper.writeValueAsString(request.description())
@@ -64,7 +65,7 @@ public class AgentAssistService {
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Impossible de préparer la description de l'agent.", exception);
         }
-        LlmRequest llmRequest = new LlmRequest(model, SYSTEM_PROMPT,
+        LlmRequest llmRequest = new LlmRequest(selected.provider(), model, SYSTEM_PROMPT,
                 "<untrusted-description-json>\n" + encodedDescription
                         + "\n</untrusted-description-json>"
                         + "\nLangue de réponse: français.",
@@ -72,7 +73,7 @@ public class AgentAssistService {
         for (int attempt = 0; attempt < 2; attempt++) {
             try {
                 LlmResult result = router.call(llmRequest);
-                return parse(result == null ? null : result.text(), model);
+                return parse(result == null ? null : result.text(), selected.provider(), model);
             } catch (InvalidProposalException exception) {
                 if (attempt == 1) {
                     throw new AssistInvalidOutputException();
@@ -82,7 +83,7 @@ public class AgentAssistService {
         throw new AssistInvalidOutputException();
     }
 
-    private AgentProposal parse(String raw, String recommendedModel) {
+    private AgentProposal parse(String raw, String recommendedProvider, String recommendedModel) {
         try {
             String json = raw == null ? "" : raw.trim();
             if (json.startsWith("```")) {
@@ -96,8 +97,16 @@ public class AgentAssistService {
             String description = requiredText(root, "description", 2000);
             String systemPrompt = requiredText(root, "systemPrompt", 10000);
             String requestedModel = optionalText(root, "model");
-            String model = requestedModel != null && models.isModelAvailable(requestedModel)
-                    ? requestedModel : recommendedModel;
+            String provider = recommendedProvider;
+            String model = recommendedModel;
+            if (requestedModel != null) {
+                try {
+                    provider = models.resolveProvider(null, requestedModel);
+                    model = requestedModel;
+                } catch (RuntimeException ignored) {
+                    // Keep the selected available provider and its recommended model.
+                }
+            }
 
             Map<String, Object> values = new HashMap<>();
             values.put("temperature", requiredNumber(root, "temperature"));
@@ -114,7 +123,7 @@ public class AgentAssistService {
                     .allowedToolIds(List.of())
                     .build();
             tunables.applyParams(configuration, values);
-            return new AgentProposal(name, description, systemPrompt, model,
+            return new AgentProposal(name, description, systemPrompt, provider, model,
                     configuration.getTemperature(), configuration.getMaxTokens(), configuration.getMaxTurns(),
                     configuration.getTimeoutSeconds(), configuration.getStyle());
         } catch (InvalidProposalException exception) {

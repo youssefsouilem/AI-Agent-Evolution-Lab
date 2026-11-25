@@ -252,7 +252,42 @@ class FeatureApiTest {
     void usersCannotUseAdminRoutes() throws Exception {
         mockMvc.perform(get("/api/admin/users")
                         .header("X-Dev-User", "regular").header("X-Dev-Role", "USER"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.error").value("Forbidden"))
+                .andExpect(jsonPath("$.errorCode").value("ACCESS_DENIED"))
+                .andExpect(jsonPath("$.message").value("Accès interdit."))
+                .andExpect(jsonPath("$.path").value("/api/admin/users"))
+                .andExpect(jsonPath("$.timestamp").exists());
+    }
+
+    @Test
+    void devStatelessWritesWorkForUserAndAdminWithoutCsrfTokens() throws Exception {
+        String user = "dev-write-user-" + UUID.randomUUID();
+        String admin = "dev-write-admin-" + UUID.randomUUID();
+        var userCreate = create(user, "USER").andExpect(status().isCreated()).andReturn();
+        Long userAgentId = objectMapper.readTree(userCreate.getResponse().getContentAsString())
+                .path("id").asLong();
+        mockMvc.perform(put("/api/agents/{id}", userAgentId)
+                        .header("X-Dev-User", user).header("X-Dev-Role", "USER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"updated by user\",\"description\":\"updated\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(delete("/api/agents/{id}", userAgentId)
+                        .header("X-Dev-User", user).header("X-Dev-Role", "USER"))
+                .andExpect(status().isNoContent());
+
+        var adminCreate = create(admin, "ADMIN").andExpect(status().isCreated()).andReturn();
+        Long adminAgentId = objectMapper.readTree(adminCreate.getResponse().getContentAsString())
+                .path("id").asLong();
+        mockMvc.perform(put("/api/agents/{id}", adminAgentId)
+                        .header("X-Dev-User", admin).header("X-Dev-Role", "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"updated by admin\",\"description\":\"updated\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(delete("/api/agents/{id}", adminAgentId)
+                        .header("X-Dev-User", admin).header("X-Dev-Role", "ADMIN"))
+                .andExpect(status().isNoContent());
     }
 
     @Test

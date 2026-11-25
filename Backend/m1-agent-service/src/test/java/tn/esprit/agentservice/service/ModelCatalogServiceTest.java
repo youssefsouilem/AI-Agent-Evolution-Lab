@@ -19,6 +19,7 @@ class ModelCatalogServiceTest {
         provider.setLabel("OpenAI");
         provider.setEnabled(true);
         provider.setApiKeyEnv("OPENAI_API_KEY");
+        provider.setBaseUrl("https://api.openai.com/v1");
         LlmCatalogProperties.Model model = new LlmCatalogProperties.Model();
         model.setId("gpt-4o-mini");
         model.setLabel("GPT-4o mini");

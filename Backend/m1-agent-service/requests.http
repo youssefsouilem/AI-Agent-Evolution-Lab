@@ -2,10 +2,48 @@
 @agentId = 12
 @basedOnVersionId = 3
 @versionId = 4
+@providerVersionId = replace-with-created-provider-version-id
 @executionId = 1
 @outboxEventId = replace-with-outbox-uuid
 @devUser = demo-owner
 @token = replace-with-a-Keycloak-JWT
+
+### Dev-profile verification: create an agent as USER (expected 201)
+POST {{baseUrl}}/api/agents
+X-Dev-User: demo-user
+X-Dev-Role: USER
+Content-Type: application/json
+
+{
+  "name": "azert",
+  "description": "qqqq",
+  "status": "DRAFT"
+}
+
+### Dev-profile verification: create an agent as ADMIN (expected 201)
+POST {{baseUrl}}/api/agents
+X-Dev-User: demo-admin
+X-Dev-Role: ADMIN
+Content-Type: application/json
+
+{
+  "name": "azert",
+  "description": "qqqq",
+  "status": "DRAFT"
+}
+
+### CORS verification (dev allows http://localhost:5173 by default; expected 201)
+POST {{baseUrl}}/api/agents
+Origin: http://localhost:5173
+X-Dev-User: demo-user
+X-Dev-Role: USER
+Content-Type: application/json
+
+{
+  "name": "azert",
+  "description": "qqqq",
+  "status": "DRAFT"
+}
 
 ### M5 flow: list the current user's agents
 GET {{baseUrl}}/api/agents
@@ -34,6 +72,42 @@ Content-Type: application/json
     "style": "concise"
   }
 }
+
+### Create an agent version with an explicit Groq provider (expected 201)
+POST {{baseUrl}}/api/agents/{{agentId}}/versions
+X-Dev-User: {{devUser}}
+X-Dev-Role: USER
+Content-Type: application/json
+
+{
+  "provider": "groq",
+  "model": "llama-3.3-70b-versatile",
+  "systemPrompt": "Réponds de manière concise.",
+  "configuration": {
+    "temperature": 0.2,
+    "maxTokens": 512,
+    "style": "concise",
+    "maxTurns": 3,
+    "timeoutSeconds": 30,
+    "allowedToolIds": []
+  }
+}
+
+### Execute the Groq-backed version (replace providerVersionId; expected 200)
+POST {{baseUrl}}/api/agents/{{agentId}}/execute
+X-Dev-User: {{devUser}}
+X-Dev-Role: USER
+Content-Type: application/json
+
+{
+  "versionId": {{providerVersionId}},
+  "input": "Réponds par OK."
+}
+
+### Admin-only provider check (one small real provider request; expected 200)
+POST {{baseUrl}}/api/admin/llm/groq/check
+X-Dev-User: demo-admin
+X-Dev-Role: ADMIN
 
 ### M5 flow: activate the created version
 PUT {{baseUrl}}/api/agents/{{agentId}}/versions/{{versionId}}/activate

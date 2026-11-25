@@ -96,7 +96,8 @@ class AgentServiceApplicationTests {
                 .andExpect(jsonPath("$.paths['/api/me']").exists())
                 .andExpect(jsonPath("$.paths['/api/agents/assist']").exists())
                 .andExpect(jsonPath("$.paths['/api/agents/{id}/stats']").exists())
-                .andExpect(jsonPath("$.paths['/api/admin/audit']").exists());
+                .andExpect(jsonPath("$.paths['/api/admin/audit']").exists())
+                .andExpect(jsonPath("$.paths['/api/admin/llm/{provider}/check']").exists());
     }
 
     @Test
@@ -130,6 +131,12 @@ class AgentServiceApplicationTests {
                 .map(JsonNode::asText).toList();
         assertEquals(java.util.Arrays.stream(tn.esprit.agentservice.dto.ErrorCode.values())
                 .map(Enum::name).toList(), documentedCodes);
+        assertTrue(documentedCodes.contains("MODEL_AMBIGUOUS"));
+        assertEquals(List.of("openai", "gemini", "groq", "openrouter"),
+                java.util.stream.StreamSupport.stream(
+                                schemas.path("VersionRequest").path("properties").path("provider")
+                                        .path("enum").spliterator(), false)
+                        .map(JsonNode::asText).toList());
         for (String property : List.of("executionId", "versionId", "durationMs", "promptTokens",
                 "completionTokens", "totalTokens", "toolCallCount")) {
             assertTrue(schemas.path("ErrorResponse").path("properties").path("execution")
