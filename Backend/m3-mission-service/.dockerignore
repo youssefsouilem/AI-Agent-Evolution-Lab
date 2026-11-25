@@ -1,0 +1,4 @@
+target
+.git
+application-local.properties
+.env

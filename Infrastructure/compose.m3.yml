@@ -1,0 +1,77 @@
+# M3 services only. Can be used alone or combined with docker-compose.yml.
+services:
+  m3-mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: m3_mission_db
+      MYSQL_USER: m3
+      MYSQL_PASSWORD: ${M3_DB_PASSWORD:?Set M3_DB_PASSWORD in .env.m3}
+      MYSQL_ROOT_PASSWORD: ${M3_MYSQL_ROOT_PASSWORD:?Set M3_MYSQL_ROOT_PASSWORD in .env.m3}
+    ports: ["127.0.0.1:3307:3306"]
+    volumes: ["m3_mysql_data:/var/lib/mysql"]
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_PASSWORD mysqladmin ping -h 127.0.0.1 -u m3 --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  m3-orchestrator:
+    build: ../Backend/ai-services/langgraph-orchestrator
+    environment:
+      M1_MODE: ${M3_M1_MODE:-mock}
+      M1_BASE_URL: ${M3_M1_BASE_URL:-http://host.docker.internal:8081}
+      M1_BEARER_TOKEN: ${M3_M1_BEARER_TOKEN:-}
+      ORCHESTRATOR_TOKEN: ${M3_ORCHESTRATOR_TOKEN:?Set M3_ORCHESTRATOR_TOKEN in .env.m3}
+      MAX_PARALLEL: ${M3_MAX_PARALLEL:-4}
+    volumes: ["m3_checkpoints:/data"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8093/health',timeout=2)"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  m3:
+    build: ../Backend/m3-mission-service
+    ports: ["127.0.0.1:8083:8083"]
+    environment:
+      DB_URL: jdbc:mysql://m3-mysql:3306/m3_mission_db
+      DB_USERNAME: m3
+      DB_PASSWORD: ${M3_DB_PASSWORD}
+      CONFIG_CLIENT_ENABLED: ${M3_CONFIG_CLIENT_ENABLED:-false}
+      CONFIG_SERVER_URL: ${M3_CONFIG_SERVER_URL:-http://host.docker.internal:8888}
+      CONFIG_PROFILE: ${M3_CONFIG_PROFILE:-default}
+      CONFIG_LABEL: ${M3_CONFIG_LABEL:-main}
+      ORCHESTRATOR_BASE_URL: http://m3-orchestrator:8093
+      ORCHESTRATOR_TOKEN: ${M3_ORCHESTRATOR_TOKEN}
+      EUREKA_ENABLED: ${M3_EUREKA_ENABLED:-false}
+      EUREKA_SERVER_URL: ${M3_EUREKA_SERVER_URL:-http://host.docker.internal:8761/eureka/}
+      M1_ENABLED: ${M3_M1_ENABLED:-false}
+      M1_BASE_URL: ${M3_M1_BASE_URL:-http://host.docker.internal:8081}
+      M6_ENABLED: ${M3_M6_ENABLED:-false}
+      M6_BASE_URL: ${M3_M6_BASE_URL:-http://host.docker.internal:8086}
+      SECURITY_ENABLED: ${M3_SECURITY_ENABLED:-false}
+      KEYCLOAK_ISSUER_URI: ${M3_KEYCLOAK_ISSUER_URI:-}
+      KEYCLOAK_AUDIENCE: ${M3_KEYCLOAK_AUDIENCE:-m3-mission-service}
+      AI_ROUTER_AGENT_ID: ${M3_AI_ROUTER_AGENT_ID:-}
+      AI_ROUTER_VERSION_ID: ${M3_AI_ROUTER_VERSION_ID:-}
+      EVENTS_ENABLED: ${M3_EVENTS_ENABLED:-false}
+      EVENTS_EXCHANGE: ${M3_EVENTS_EXCHANGE:-mission.events}
+      EVENTS_ROUTING_KEY: ${M3_EVENTS_ROUTING_KEY:-mission.lifecycle}
+      RABBITMQ_HOST: ${M3_RABBITMQ_HOST:-m3-rabbitmq}
+      RABBITMQ_USERNAME: ${M3_RABBITMQ_USERNAME:-m3}
+      RABBITMQ_PASSWORD: ${M3_RABBITMQ_PASSWORD:-}
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      m3-mysql: {condition: service_healthy}
+      m3-orchestrator: {condition: service_healthy}
+  m3-rabbitmq:
+    image: rabbitmq:4-management
+    profiles: [events]
+    environment:
+      RABBITMQ_DEFAULT_USER: ${M3_RABBITMQ_USERNAME:-m3}
+      RABBITMQ_DEFAULT_PASS: ${M3_RABBITMQ_PASSWORD:?Set M3_RABBITMQ_PASSWORD in .env.m3}
+    ports: ["127.0.0.1:5672:5672", "127.0.0.1:15672:15672"]
+    volumes: ["m3_rabbitmq:/var/lib/rabbitmq"]
+volumes:
+  m3_mysql_data:
+  m3_checkpoints:
+  m3_rabbitmq:

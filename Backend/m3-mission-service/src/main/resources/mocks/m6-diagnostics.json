@@ -1,0 +1,20 @@
+{
+  "NORMAL": {
+    "anomalyDetected": false,
+    "severity": "NORMAL",
+    "reason": "SIMULATION_NORMAL",
+    "blocking": false
+  },
+  "MINOR": {
+    "anomalyDetected": true,
+    "severity": "MINOR",
+    "reason": "SIMULATION_MINOR",
+    "blocking": false
+  },
+  "CRITICAL": {
+    "anomalyDetected": true,
+    "severity": "CRITICAL",
+    "reason": "SIMULATION_CRITICAL",
+    "blocking": true
+  }
+}

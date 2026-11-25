@@ -46,3 +46,7 @@ Thumbs.db
 
 # Docker overrides
 docker-compose.override.yml
+# M3 local runtime state and private Compose environment
+.pytest_cache/
+*.sqlite*
+.env.m3
