@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import tn.esprit.agentservice.service.TunableParameterCatalog;
 
 import java.util.List;
 
@@ -14,7 +15,8 @@ public record ConfigurationDto(
         @Min(256) @Max(4096) Integer maxTokens,
         @Pattern(regexp = "concise|detaille") String style,
         @Min(1) @Max(10) Integer maxTurns,
-        @Min(1) Integer timeoutSeconds,
+        @Min(TunableParameterCatalog.TIMEOUT_SECONDS_MIN)
+        @Max(TunableParameterCatalog.TIMEOUT_SECONDS_MAX) Integer timeoutSeconds,
         @NotNull List<@NotNull Long> allowedToolIds
 ) {
 }

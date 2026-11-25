@@ -3,7 +3,9 @@ import {
   BarChart2,
   Bot,
   ChevronDown,
+  ClipboardList,
   Compass,
+  Cpu,
   Grid2X2,
   HelpCircle,
   Home,
@@ -25,11 +27,12 @@ export default function MainLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const location = useLocation()
-  const { user, isAdmin, toggleRole, logout, toast, clearToast } = useAuth()
+  const { user, isAdmin, limits, usage, toggleRole, logout, toast, clearToast } = useAuth()
 
   // Expandable group states
   const isAgentRoute =
     location.pathname.startsWith('/agents') ||
+    location.pathname.startsWith('/agent-models') ||
     location.pathname.startsWith('/agent-tests') ||
     location.pathname.startsWith('/agent-history')
 
@@ -135,6 +138,13 @@ export default function MainLayout() {
                     <span>Nouvel agent</span>
                   </NavLink>
                   <NavLink
+                    to="/agent-models"
+                    onClick={() => setMobileOpen(false)}
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <span>Modèles LLM</span>
+                  </NavLink>
+                  <NavLink
                     to="/agent-tests"
                     onClick={() => setMobileOpen(false)}
                     className={({ isActive }) => (isActive ? 'active' : '')}
@@ -148,6 +158,23 @@ export default function MainLayout() {
                   >
                     <span>Historique</span>
                   </NavLink>
+
+                  {!isAdmin && limits?.maxAgents && (
+                    <div className="m6-quota-widget" title={`Quota: ${usage?.agents ?? 0} sur ${limits.maxAgents} agents utilisés`}>
+                      <div className="m6-quota-header">
+                        <span>Quota agents</span>
+                        <strong>{usage?.agents ?? 0}/{limits.maxAgents}</strong>
+                      </div>
+                      <div className="m6-quota-bar">
+                        <div
+                          className={`m6-quota-fill ${(usage?.agents ?? 0) >= limits.maxAgents ? 'exceeded' : ''}`}
+                          style={{
+                            width: `${Math.min(100, Math.round(((usage?.agents ?? 0) / limits.maxAgents) * 100))}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -275,13 +302,23 @@ export default function MainLayout() {
                   <span>Supervision des services</span>
                 </NavLink>
 
-                <div className="m6-nav-item-disabled" title="En cours de développement">
-                  <div className="m6-nav-item-content">
-                    <Users size={18} />
-                    <span>Utilisateurs & permissions</span>
-                  </div>
-                  <span className="m6-pill-badge">Bientôt</span>
-                </div>
+                <NavLink
+                  to="/admin/users"
+                  onClick={() => setMobileOpen(false)}
+                  className={({ isActive }) => (isActive ? 'active' : '')}
+                >
+                  <Users size={18} />
+                  <span>Utilisateurs & quotas</span>
+                </NavLink>
+
+                <NavLink
+                  to="/admin/audit"
+                  onClick={() => setMobileOpen(false)}
+                  className={({ isActive }) => (isActive ? 'active' : '')}
+                >
+                  <ClipboardList size={18} />
+                  <span>Journal d'audit</span>
+                </NavLink>
               </nav>
             </>
           )}

@@ -4,6 +4,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 import tn.esprit.agentservice.config.CurrentUser;
 import tn.esprit.agentservice.dto.ExecutionDetail;
 import tn.esprit.agentservice.dto.ExecutionSummary;
@@ -19,14 +20,26 @@ import java.util.List;
 @Service
 public class AgentExecutionHistoryService {
     private final AgentService agentService;
+    private final AgentAccessPolicy accessPolicy;
     private final AgentExecutionRepository executions;
     private final AgentRepository agents;
+    @Autowired
     public AgentExecutionHistoryService(
             AgentService agentService,
             AgentExecutionRepository executions,
             AgentRepository agents
     ) {
+        this(agentService, new AgentAccessPolicy(), executions, agents);
+    }
+
+    public AgentExecutionHistoryService(
+            AgentService agentService,
+            AgentAccessPolicy accessPolicy,
+            AgentExecutionRepository executions,
+            AgentRepository agents
+    ) {
         this.agentService = agentService;
+        this.accessPolicy = accessPolicy;
         this.executions = executions;
         this.agents = agents;
     }
@@ -35,7 +48,7 @@ public class AgentExecutionHistoryService {
     public HistoryPage forAgent(
             Long agentId, ExecutionStatus status, Long versionId, int page, int size, CurrentUser user
     ) {
-        agentService.loadOwnedAgent(agentId, user);
+        accessPolicy.requireRead(agentService.loadOwnedAgent(agentId, user), user);
         Specification<AgentExecution> spec = Specification.where((root, query, cb) ->
                 cb.equal(root.get("agentId"), agentId));
         if (status != null) {
@@ -51,7 +64,7 @@ public class AgentExecutionHistoryService {
 
     @Transactional(readOnly = true)
     public ExecutionDetail detail(Long agentId, Long executionId, CurrentUser user) {
-        agentService.loadOwnedAgent(agentId, user);
+        accessPolicy.requireRead(agentService.loadOwnedAgent(agentId, user), user);
         AgentExecution execution = executions.findById(executionId)
                 .filter(row -> row.getAgentId().equals(agentId))
                 .orElseThrow(() -> new ResourceNotFoundException("L'exécution demandée est introuvable."));
@@ -99,7 +112,7 @@ public class AgentExecutionHistoryService {
                 row.getErrorMessage(), row.getStatus(), row.getOverrides(), row.getAppliedSettings(),
                 row.getStartedAt(), row.getFinishedAt(), row.getDurationMs(), row.getPromptTokens(),
                 row.getCompletionTokens(), row.getTotalTokens(), row.getToolCallCount(), row.getToolCalls(),
-                row.getModelUsed());
+                row.getProvider(), row.getModelUsed());
     }
 
     public record HistoryPage(List<ExecutionSummary> items, long total) { }

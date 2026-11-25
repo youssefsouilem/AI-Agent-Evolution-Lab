@@ -1,32 +1,38 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
+import { clearCapabilitiesCache, getMe } from '../../services/agentApi'
 
 /**
- * Authentication and Role Context for AI-Agent-Evolution-Lab.
+ * Authentication, Role and Quota Context for AI-Agent-Evolution-Lab.
  *
  * NOTE ON SECURITY:
- * The frontend role here ONLY changes what is displayed in the user interface
- * (e.g. admin navigation entries, ownerId display, supervision page).
- * The real security and authorization are strictly enforced by the backend
- * microservices (e.g. Spring Boot OAuth2 resource server / Keycloak JWT validation).
+ * Frontend roles and quota checks ONLY control what is displayed in the user interface
+ * (affordances, progress bars, disabled buttons, admin routes).
+ * The backend microservice M1 enforces all authorization, read-only mode, and quota limits
+ * (returning 403 AGENT_QUOTA_EXCEEDED, 403 ADMIN_READ_ONLY, etc.).
  *
- * TODO (Keycloak integration):
- * Later, the role must be extracted from the Keycloak JWT token claim:
- *   const roles = tokenParsed?.realm_access?.roles || []
- *   const isAdmin = roles.includes('admin') || roles.includes('ROLE_ADMIN')
+ * TODO (Keycloak integration in production):
+ * In production with Keycloak, user identity and roles will be extracted from
+ * the JWT token claim (realm_access.roles contains "admin" or "ROLE_ADMIN").
+ * In dev / mock mode, identity is negotiated via GET /api/me and dev headers.
  */
 
 const ROLE_STORAGE_KEY = 'evolution-lab-role'
 
 const AuthContext = createContext({
-  user: { name: 'Utilisateur démo', role: 'USER' },
+  user: { id: 'demo-user', name: 'Utilisateur démo', role: 'USER' },
   role: 'USER',
   isAdmin: false,
+  limits: { maxAgents: 5 },
+  usage: { agents: 0 },
+  capabilities: {},
+  refreshProfile: () => {},
   setRole: () => {},
   toggleRole: () => {},
   logout: () => {},
   toast: null,
   clearToast: () => {},
+  setToast: () => {},
 })
 
 export function AuthProvider({ children }) {
@@ -37,20 +43,63 @@ export function AuthProvider({ children }) {
       return 'USER'
     }
   })
+  const [profile, setProfile] = useState(null)
   const [toast, setToast] = useState(null)
 
-  useEffect(() => {
+  const isAdmin = role === 'ADMIN'
+
+  const refreshProfile = useCallback(async () => {
     try {
-      localStorage.setItem(ROLE_STORAGE_KEY, role)
+      const data = await getMe()
+      if (data) {
+        setProfile(data)
+        if (data.role && data.role !== role) {
+          setRoleState(data.role)
+          try {
+            localStorage.setItem(ROLE_STORAGE_KEY, data.role)
+          } catch {
+            // ignore
+          }
+        }
+      }
     } catch {
-      // ignore storage errors
+      // Fallback if GET /api/me is 404 or fails
+      setProfile((prev) => ({
+        ...prev,
+        userId: isAdmin ? 'demo-admin' : 'demo-user',
+        displayName: isAdmin ? 'Administrateur démo' : 'Utilisateur démo',
+        role,
+        limits: { maxAgents: isAdmin ? null : 5 },
+        usage: prev?.usage || { agents: 0 },
+        capabilities: {
+          history: true,
+          overrides: true,
+          assist: true,
+          llmCatalog: true,
+          stats: true,
+          quota: true,
+        },
+      }))
     }
-  }, [role])
+  }, [role, isAdmin])
+
+  useEffect(() => {
+    refreshProfile()
+  }, [refreshProfile])
 
   const setRole = (newRole) => {
     const validRole = newRole === 'ADMIN' ? 'ADMIN' : 'USER'
     setRoleState(validRole)
+    try {
+      localStorage.setItem(ROLE_STORAGE_KEY, validRole)
+    } catch {
+      // ignore
+    }
+    clearCapabilitiesCache()
     setToast(`Rôle changé en ${validRole === 'ADMIN' ? 'Administrateur' : 'Utilisateur'}`)
+    setTimeout(() => {
+      refreshProfile()
+    }, 50)
   }
 
   const toggleRole = () => {
@@ -64,15 +113,27 @@ export function AuthProvider({ children }) {
       // ignore
     }
     setRoleState('USER')
+    clearCapabilitiesCache()
     setToast('Déconnexion effectuée (session réinitialisée)')
   }
 
   const clearToast = () => setToast(null)
 
-  const isAdmin = role === 'ADMIN'
   const user = {
-    name: isAdmin ? 'Administrateur démo' : 'Utilisateur démo',
+    id: profile?.userId || 'dev-user',
+    name: profile?.displayName || (isAdmin ? 'Administrateur' : 'Utilisateur'),
     role,
+  }
+
+  const limits = profile?.limits ?? { maxAgents: isAdmin ? null : 5 }
+  const usage = profile?.usage ?? { agents: 0 }
+  const capabilities = profile?.capabilities ?? {
+    history: true,
+    overrides: true,
+    assist: true,
+    llmCatalog: true,
+    stats: true,
+    quota: true,
   }
 
   return (
@@ -81,11 +142,16 @@ export function AuthProvider({ children }) {
         user,
         role,
         isAdmin,
+        limits,
+        usage,
+        capabilities,
+        refreshProfile,
         setRole,
         toggleRole,
         logout,
         toast,
         clearToast,
+        setToast,
       }}
     >
       {children}

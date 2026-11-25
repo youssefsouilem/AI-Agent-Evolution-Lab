@@ -59,6 +59,10 @@
 .m1-badge-draft { background:#fff7ed;color:#d97706;border:1px solid #fed7aa; }
 .m1-badge-active { background:#ecfdf5;color:#059669;border:1px solid #a7f3d0; }
 .m1-badge-archived { background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb; }
+.m1-badge-readonly { background:#f3e8ff;color:#7e22ce;border:1px solid #d8b4fe; }
+
+.m1-create-card.disabled { opacity:0.55;cursor:not-allowed;background:#fbfaff; }
+.m1-create-card.disabled:hover { border-color:var(--border);background:#fbfaff;transform:none; }
 
 .m1-agent-card p { color:var(--muted);font-size:13px;line-height:1.5;margin:0;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:38px; }
 .m1-card-meta { display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px; }

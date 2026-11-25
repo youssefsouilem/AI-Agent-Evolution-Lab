@@ -4,10 +4,18 @@ server:
 spring:
   application:
     name: agent-service
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiModerationAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration
   profiles:
     default: dev
   config:
-    import: "optional:configserver:"
+    import: "optional:configserver:,optional:file:.env[.properties],optional:file:./m1-agent-service/.env[.properties],optional:file:../.env[.properties]"
   cloud:
     config:
       enabled: false
@@ -42,12 +50,6 @@ spring:
     publisher-returns: true
     template:
       mandatory: true
-  ai:
-    openai:
-      api-key: ${OPENAI_API_KEY:missing-key}
-      chat:
-        options:
-          model: gpt-4o-mini
   security:
     oauth2:
       resourceserver:
@@ -80,7 +82,10 @@ management:
 
 logging:
   level:
-    tn.esprit.agentservice: DEBUG
+    tn.esprit.agentservice: INFO
+    org.springframework.web.client: OFF
+    org.springframework.ai.openai: OFF
+    org.apache.hc.client5.http.wire: OFF
 
 app:
   events:
@@ -94,6 +99,56 @@ app:
       agent-execution-failed: agent.execution.failed
 
 m1:
+  cors:
+    allowed-origins: ${M1_CORS_ALLOWED_ORIGINS:}
+  quota:
+    user-max-agents: 5
+  llm:
+    strict-model-check: true
+    providers:
+      - id: openai
+        label: OpenAI
+        enabled: true
+        api-key-env: OPENAI_API_KEY
+        base-url: https://api.openai.com/v1
+        supports-tools: true
+        models:
+          - id: gpt-4o-mini
+            label: GPT-4o mini
+            recommended: true
+      - id: gemini
+        label: Google Gemini
+        enabled: true
+        api-key-env: GEMINI_API_KEY
+        base-url: https://generativelanguage.googleapis.com/v1beta/openai
+        supports-tools: true
+        models:
+          - id: gemini-3.6-flash
+            label: Gemini 3.6 Flash
+            recommended: true
+      - id: groq
+        label: Groq
+        enabled: true
+        api-key-env: GROQ_API_KEY
+        base-url: https://api.groq.com/openai/v1
+        supports-tools: true
+        models:
+          - id: llama-3.3-70b-versatile
+            label: Llama 3.3 70B Versatile
+            recommended: true
+      - id: openrouter
+        label: OpenRouter
+        enabled: true
+        api-key-env: OPENROUTER_API_KEY
+        base-url: https://openrouter.ai/api/v1
+        supports-tools: true
+        models:
+          - id: openai/gpt-4o-mini
+            label: GPT-4o mini (OpenRouter)
+            recommended: true
+    check-max-per-hour: 20
+  assist:
+    max-per-hour: 10
   events:
     legacy-aliases: true
   outbox:

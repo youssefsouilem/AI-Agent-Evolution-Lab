@@ -33,6 +33,7 @@ public class AgentExecution {
     private int versionNumber;
     @Column(nullable = false)
     private String requestedBy;
+    private String requestedByRole;
     @Column(nullable = false, length = 20000)
     private String input;
     @Column(columnDefinition = "CLOB")
@@ -61,6 +62,7 @@ public class AgentExecution {
     @Column(columnDefinition = "CLOB")
     private String toolCalls;
     private String modelUsed;
+    private String provider;
 
     @PrePersist
     void onCreate() {

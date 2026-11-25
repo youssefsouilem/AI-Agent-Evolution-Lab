@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
+@EnabledIfEnvironmentVariable(named = "M1_LLM_SMOKE_OPENAI", matches = "true")
 @EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+")
 class SpringAiSmokeTest {
     @Autowired private LlmGateway gateway;

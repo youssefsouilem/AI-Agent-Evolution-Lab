@@ -1,10 +1,12 @@
 export class ApiError extends Error {
-  constructor(status, message, details = null) {
+  constructor(status, message, errorCode = null, details = null) {
     super(message)
     this.status = status
     this.name = 'ApiError'
-    this.errorCode = details?.errorCode || null
+    this.errorCode = errorCode || details?.errorCode || null
     this.execution = details?.execution || null
+    this.limit = details?.limit ?? null
+    this.usage = details?.usage ?? null
     this.details = details
   }
 }
@@ -14,14 +16,50 @@ function getToken() {
   return null
 }
 
+function getDevHeaders() {
+  if (import.meta.env.DEV && import.meta.env.VITE_USE_MOCK !== 'true') {
+    try {
+      const role = localStorage.getItem('evolution-lab-role') || 'USER'
+      return {
+        'X-Dev-User': 'dev-user',
+        'X-Dev-Role': role === 'ADMIN' ? 'ADMIN' : 'USER',
+      }
+    } catch {
+      return {
+        'X-Dev-User': 'dev-user',
+        'X-Dev-Role': 'USER',
+      }
+    }
+  }
+  return {}
+}
+
 function getErrorMessage(status, body) {
   if (body?.message) return body.message
+
+  if (body?.errorCode === 'AGENT_QUOTA_EXCEEDED') {
+    return `Limite atteinte : quota d'agents dépassé (limite : ${body.limit || 5}).`
+  }
+  if (body?.errorCode === 'ADMIN_READ_ONLY') {
+    return "Action interdite : vous consultez cet agent en lecture seule."
+  }
+  if (body?.errorCode === 'RATE_LIMITED') {
+    return 'Trop de demandes, réessayez plus tard.'
+  }
+  if (body?.errorCode === 'ASSIST_INVALID_OUTPUT') {
+    return "La proposition générée par l'IA est invalide ou incomplète."
+  }
+  if (body?.errorCode === 'PROVIDER_NOT_CONFIGURED') {
+    return "Le fournisseur du modèle n'est pas configuré sur le serveur."
+  }
+
   const messages = {
     400: 'Données invalides',
     422: 'Données invalides',
     403: 'Accès refusé',
     404: 'Introuvable',
     409: 'Conflit',
+    429: 'Trop de demandes, réessayez plus tard',
     502: 'Service indisponible (outils ou modèle de langage)',
     504: 'Délai dépassé',
   }
@@ -30,9 +68,12 @@ function getErrorMessage(status, body) {
 
 async function request(url, options = {}) {
   const token = getToken()
+  const devHeaders = getDevHeaders()
+
   const headers = {
     'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
+    ...devHeaders,
     ...options.headers,
   }
 
@@ -58,7 +99,8 @@ async function request(url, options = {}) {
   }
 
   if (!response.ok) {
-    throw new ApiError(response.status, getErrorMessage(response.status, body), body)
+    const errorCode = body?.errorCode || null
+    throw new ApiError(response.status, getErrorMessage(response.status, body), errorCode, body)
   }
 
   return body
@@ -66,9 +108,12 @@ async function request(url, options = {}) {
 
 async function requestWithHeaders(url, options = {}) {
   const token = getToken()
+  const devHeaders = getDevHeaders()
+
   const headers = {
     'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
+    ...devHeaders,
     ...options.headers,
   }
 
@@ -94,7 +139,8 @@ async function requestWithHeaders(url, options = {}) {
   }
 
   if (!response.ok) {
-    throw new ApiError(response.status, getErrorMessage(response.status, body), body)
+    const errorCode = body?.errorCode || null
+    throw new ApiError(response.status, getErrorMessage(response.status, body), errorCode, body)
   }
 
   return { body, headers: response.headers }
@@ -111,10 +157,7 @@ let cachedCapabilities = null
 
 /**
  * Feature-detected capabilities of the M1 service.
- * Probes GET /api/executions?size=1 once at startup and caches the result.
- * 200 -> executions & overrides are supported.
- * 404, 405, 501 -> not supported.
- * In mock mode, all capabilities are always enabled.
+ * Probes GET /api/me first; if 404, probes GET /api/executions?size=1.
  */
 export async function getCapabilities() {
   if (cachedCapabilities !== null) {
@@ -122,24 +165,89 @@ export async function getCapabilities() {
   }
 
   if (USE_MOCK) {
-    cachedCapabilities = { executions: true, overrides: true, isMock: true }
+    cachedCapabilities = {
+      history: true,
+      overrides: true,
+      assist: true,
+      llmCatalog: true,
+      stats: true,
+      quota: true,
+      executions: true,
+      isMock: true,
+    }
     return cachedCapabilities
   }
 
   try {
-    const response = await fetch('/api/executions?size=1', {
-      headers: { 'Content-Type': 'application/json' },
+    const meRes = await fetch('/api/me', {
+      headers: { 'Content-Type': 'application/json', ...getDevHeaders() },
     })
-    if (response.status === 200) {
-      cachedCapabilities = { executions: true, overrides: true, isMock: false }
-    } else {
-      cachedCapabilities = { executions: false, overrides: false, isMock: false }
+    if (meRes.status === 200) {
+      const data = await meRes.json()
+      cachedCapabilities = {
+        ...data.capabilities,
+        executions: data.capabilities?.history ?? true,
+        isMock: false,
+      }
+      return cachedCapabilities
     }
   } catch {
-    cachedCapabilities = { executions: false, overrides: false, isMock: false }
+    // continue to fallback probe
+  }
+
+  try {
+    const response = await fetch('/api/executions?size=1', {
+      headers: { 'Content-Type': 'application/json', ...getDevHeaders() },
+    })
+    if (response.status === 200) {
+      cachedCapabilities = {
+        history: true,
+        overrides: true,
+        assist: false,
+        llmCatalog: false,
+        stats: false,
+        quota: false,
+        executions: true,
+        isMock: false,
+      }
+    } else {
+      cachedCapabilities = {
+        history: false,
+        overrides: false,
+        assist: false,
+        llmCatalog: false,
+        stats: false,
+        quota: false,
+        executions: false,
+        isMock: false,
+      }
+    }
+  } catch {
+    cachedCapabilities = {
+      history: false,
+      overrides: false,
+      assist: false,
+      llmCatalog: false,
+      stats: false,
+      quota: false,
+      executions: false,
+      isMock: false,
+    }
   }
 
   return cachedCapabilities
+}
+
+export function clearCapabilitiesCache() {
+  cachedCapabilities = null
+}
+
+export async function getMe() {
+  if (USE_MOCK) {
+    const mock = await getMock()
+    return mock.getMe()
+  }
+  return request('/api/me')
 }
 
 export async function listAgents({ all = false } = {}) {
@@ -284,6 +392,88 @@ export async function listTools() {
   }
 }
 
+export async function listLlmModels() {
+  if (USE_MOCK) {
+    const mock = await getMock()
+    return mock.listLlmModels()
+  }
+  return request('/api/llm/models')
+}
+
+export async function assistAgent({ description, language = 'fr' }) {
+  if (USE_MOCK) {
+    const mock = await getMock()
+    return mock.assistAgent({ description, language })
+  }
+  return request('/api/agents/assist', {
+    method: 'POST',
+    body: JSON.stringify({ description, language }),
+  })
+}
+
+export async function getAgentStats(agentId, days = 7) {
+  if (USE_MOCK) {
+    const mock = await getMock()
+    return mock.getAgentStats(agentId, days)
+  }
+  return request(`/api/agents/${agentId}/stats?days=${days}`)
+}
+
+export async function adminListUsers() {
+  if (USE_MOCK) {
+    const mock = await getMock()
+    return mock.adminListUsers()
+  }
+  return request('/api/admin/users')
+}
+
+export async function adminSetQuota(ownerId, maxAgents) {
+  if (USE_MOCK) {
+    const mock = await getMock()
+    return mock.adminSetQuota(ownerId, maxAgents)
+  }
+  return request(`/api/admin/users/${encodeURIComponent(ownerId)}/quota`, {
+    method: 'PUT',
+    body: JSON.stringify({ maxAgents }),
+  })
+}
+
+export async function adminArchiveAgent(id, reason) {
+  if (USE_MOCK) {
+    const mock = await getMock()
+    return mock.adminArchiveAgent(id, reason)
+  }
+  return request(`/api/admin/agents/${id}/archive`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  })
+}
+
+export async function adminDeleteAgent(id, reason) {
+  if (USE_MOCK) {
+    const mock = await getMock()
+    return mock.adminDeleteAgent(id, reason)
+  }
+  return request(`/api/admin/agents/${id}?reason=${encodeURIComponent(reason)}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function adminListAudit(page = 0, size = 20) {
+  if (USE_MOCK) {
+    const mock = await getMock()
+    return mock.adminListAudit(page, size)
+  }
+  const { body, headers } = await requestWithHeaders(`/api/admin/audit?page=${page}&size=${size}`)
+  const totalCountHeader = headers.get('x-total-count')
+  const totalCount =
+    totalCountHeader !== null ? parseInt(totalCountHeader, 10) : Array.isArray(body) ? body.length : 0
+  return {
+    items: Array.isArray(body) ? body : [],
+    totalCount: isNaN(totalCount) ? 0 : totalCount,
+  }
+}
+
 export async function getM1Health() {
   if (USE_MOCK) {
     const mock = await getMock()
@@ -319,9 +509,12 @@ export async function listExecutions(agentId, { status, versionId, page = 0, siz
   if (status) params.append('status', status)
   if (versionId) params.append('versionId', String(versionId))
 
-  const { body, headers } = await requestWithHeaders(`/api/agents/${agentId}/executions?${params.toString()}`)
+  const { body, headers } = await requestWithHeaders(
+    `/api/agents/${agentId}/executions?${params.toString()}`
+  )
   const totalCountHeader = headers.get('x-total-count')
-  const totalCount = totalCountHeader !== null ? parseInt(totalCountHeader, 10) : (Array.isArray(body) ? body.length : 0)
+  const totalCount =
+    totalCountHeader !== null ? parseInt(totalCountHeader, 10) : Array.isArray(body) ? body.length : 0
   return {
     items: Array.isArray(body) ? body : [],
     totalCount: isNaN(totalCount) ? 0 : totalCount,
@@ -348,7 +541,8 @@ export async function listAllExecutions({ agentId, status, page = 0, size = 10, 
 
   const { body, headers } = await requestWithHeaders(`/api/executions?${params.toString()}`)
   const totalCountHeader = headers.get('x-total-count')
-  const totalCount = totalCountHeader !== null ? parseInt(totalCountHeader, 10) : (Array.isArray(body) ? body.length : 0)
+  const totalCount =
+    totalCountHeader !== null ? parseInt(totalCountHeader, 10) : Array.isArray(body) ? body.length : 0
   return {
     items: Array.isArray(body) ? body : [],
     totalCount: isNaN(totalCount) ? 0 : totalCount,

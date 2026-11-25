@@ -16,8 +16,8 @@ public class DevSecurityWarning {
     public void warnSecurityIsDisabled() {
         logger.warn("""
                 ****************************************************************
-                *                 SECURITY DISABLED (dev profile)              *
-                * This profile is open and is never evidence of security.       *
+                * SECURITY DISABLED / dev identity simulation active           *
+                * This profile is never evidence of production security.        *
                 ****************************************************************
                 """);
     }

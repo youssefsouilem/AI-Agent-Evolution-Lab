@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import tn.esprit.agentservice.config.CurrentUser;
@@ -47,41 +47,46 @@ public class AgentExecutionService {
     private final AgentVersionRepository versionRepository;
     private final ObjectProvider<AgentToolProvider> toolProvider;
     private final TunableParameterCatalog catalog;
-    private final LlmGateway llmGateway;
     private final LlmFailureClassifier failureClassifier;
     private final AgentExecutionStore store;
     private final ObjectMapper objectMapper;
     private final ExecutorService executionExecutor;
-    private final String apiKey;
+    private final AgentAccessPolicy accessPolicy;
+    private final ModelCatalogService modelCatalog;
+    private final ProviderRouter providerRouter;
 
+    @Autowired
     public AgentExecutionService(
             AgentService agentService,
             AgentVersionService versionService,
             AgentVersionRepository versionRepository,
             ObjectProvider<AgentToolProvider> toolProvider,
             TunableParameterCatalog catalog,
-            LlmGateway llmGateway,
             LlmFailureClassifier failureClassifier,
             AgentExecutionStore store,
             ObjectMapper objectMapper,
             ExecutorService executionExecutor,
-            @Value("${spring.ai.openai.api-key:missing-key}") String apiKey
+            AgentAccessPolicy accessPolicy,
+            ModelCatalogService modelCatalog,
+            ProviderRouter providerRouter
     ) {
         this.agentService = agentService;
         this.versionService = versionService;
         this.versionRepository = versionRepository;
         this.toolProvider = toolProvider;
         this.catalog = catalog;
-        this.llmGateway = llmGateway;
         this.failureClassifier = failureClassifier;
         this.store = store;
         this.objectMapper = objectMapper;
         this.executionExecutor = executionExecutor;
-        this.apiKey = apiKey;
+        this.accessPolicy = accessPolicy;
+        this.modelCatalog = modelCatalog;
+        this.providerRouter = providerRouter;
     }
 
     public ExecuteResponse execute(Long agentId, ExecuteRequest request, CurrentUser user) {
-        Agent agent = agentService.loadOwnedAgent(agentId, user);
+        Agent agent = agentService.loadOwnedAgentForUpdate(agentId, user);
+        accessPolicy.requireWrite(agent, user);
         if (agent.getStatus() == tn.esprit.agentservice.entity.AgentStatus.ARCHIVED) {
             throw new InvalidConfigurationException("Un agent archivé ne peut pas être exécuté.");
         }
@@ -91,6 +96,8 @@ public class AgentExecutionService {
                                 "Aucune version active n'est disponible pour cet agent."
                         ))
                 : versionService.requireVersion(agentId, request.versionId());
+        String providerId = modelCatalog.resolveProvider(version.getProvider(), version.getModel());
+        String modelId = modelCatalog.canonicalModelId(providerId, version.getModel());
         AgentConfiguration storedConfiguration = version.getConfiguration();
         if (storedConfiguration == null) {
             throw new InvalidConfigurationException("La version sélectionnée ne possède pas de configuration.");
@@ -105,12 +112,13 @@ public class AgentExecutionService {
         }
         validateEffectiveConfiguration(configuration);
         catalog.applyParams(configuration, request.overrides());
-        Map<String, Object> appliedSettings = appliedSettings(version, configuration);
-        String contextJson = request.context() == null ? null : request.context().toString();
+        Map<String, Object> appliedSettings = appliedSettings(version, configuration, modelId);
+        String contextJson = contextAsText(request);
         String userMessage = userMessage(request);
 
-        var execution = store.start(agentId, version.getId(), version.getVersionNumber(), user.id(),
-                request.input(), contextJson, request.overrides(), appliedSettings, version.getModel());
+        var execution = store.start(agentId, version.getId(), version.getVersionNumber(), providerId,
+                user.id(), user.role(),
+                request.input(), contextJson, request.overrides(), appliedSettings, modelId);
         long startNanos = System.nanoTime();
         ToolCallRecorder recorder = new ToolCallRecorder();
         String callerAuthorization = RequestContextHolder.getRequestAttributes()
@@ -125,11 +133,6 @@ public class AgentExecutionService {
         ExecutionStatus finalStatus = ExecutionStatus.FAILED;
         Future<LlmResult> call = null;
         try {
-            if (apiKey == null || apiKey.isBlank() || "missing-key".equalsIgnoreCase(apiKey.trim())) {
-                throw failed("PROVIDER_NOT_CONFIGURED", HttpStatus.BAD_GATEWAY,
-                        "Le fournisseur du modèle n'est pas configuré.", execution.getId(), version.getId(),
-                        0L, null, null, null, 0, null);
-            }
             List<org.springframework.ai.tool.ToolCallback> callbacks = allowedCallbacks(
                     configuration, version.getId(), recorder
             );
@@ -138,7 +141,8 @@ public class AgentExecutionService {
                     .map(callback -> limitTurns(callback, configuration.getMaxTurns(), calls, recorder))
                     .toList();
             LlmRequest llmRequest = new LlmRequest(
-                    version.getModel(),
+                    providerId,
+                    modelId,
                     styledSystemPrompt(version.getSystemPrompt(), configuration.getStyle()),
                     userMessage,
                     new LlmSettings(configuration.getTemperature(),
@@ -149,7 +153,7 @@ public class AgentExecutionService {
             call = executionExecutor.submit(() -> {
                 ToolAuthorizationContext.set(callerAuthorization);
                 try {
-                    return llmGateway.call(llmRequest);
+                    return providerRouter.call(llmRequest);
                 } finally {
                     ToolAuthorizationContext.clear();
                 }
@@ -351,9 +355,11 @@ public class AgentExecutionService {
         catalog.applyParams(configuration, values);
     }
 
-    private Map<String, Object> appliedSettings(AgentVersion version, AgentConfiguration configuration) {
+    private Map<String, Object> appliedSettings(
+            AgentVersion version, AgentConfiguration configuration, String modelId
+    ) {
         Map<String, Object> settings = new LinkedHashMap<>();
-        settings.put("model", version.getModel());
+        settings.put("model", modelId);
         settings.put("temperature", configuration.getTemperature());
         settings.put("maxTokens", configuration.getMaxTokens() == null ? 1024 : configuration.getMaxTokens());
         settings.put("maxTurns", configuration.getMaxTurns() <= 0 ? 3 : configuration.getMaxTurns());
@@ -369,18 +375,37 @@ public class AgentExecutionService {
     }
 
     private String styledSystemPrompt(String prompt, String style) {
+        if (prompt == null || prompt.isBlank()) {
+            return "Tu es un assistant utile.";
+        }
         String instruction = "detaille".equals(style)
                 ? "Réponds de manière détaillée et structurée."
                 : "Réponds de manière concise.";
-        return prompt == null || prompt.isBlank() ? instruction : prompt + "\n" + instruction;
+        return prompt + "\n" + instruction;
+    }
+
+    private String contextAsText(ExecuteRequest request) {
+        Object context = request.context();
+        if (context == null) {
+            return null;
+        }
+        if (context instanceof String text) {
+            return text;
+        }
+        try {
+            return objectMapper.writeValueAsString(context);
+        } catch (JsonProcessingException exception) {
+            throw new InvalidConfigurationException("Le contexte n'est pas un JSON valide.");
+        }
     }
 
     private String userMessage(ExecuteRequest request) {
-        if (request.context() == null || request.context().isNull()) {
+        String context = contextAsText(request);
+        // An empty context ({} or blank text) adds nothing for the model: send only the question.
+        if (context == null || context.isBlank() || "{}".equals(context.trim())) {
             return request.input();
         }
-        String context = request.context().isTextual() ? request.context().asText() : request.context().toString();
-        return "Context:\n" + context + "\n\nTask:\n" + request.input();
+        return "Context:\n" + context + "\nTask:\n" + request.input();
     }
 
     private String writeToolCalls(List<ToolCallRecord> calls) {

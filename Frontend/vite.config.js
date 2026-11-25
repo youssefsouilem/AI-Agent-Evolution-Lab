@@ -19,6 +19,18 @@ export default defineConfig({
         target: 'http://localhost:8081',
         changeOrigin: true,
       },
+      '/api/me': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+      },
+      '/api/llm': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+      },
+      '/api/admin': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+      },
       '/m1-health': {
         target: 'http://localhost:8081',
         changeOrigin: true,

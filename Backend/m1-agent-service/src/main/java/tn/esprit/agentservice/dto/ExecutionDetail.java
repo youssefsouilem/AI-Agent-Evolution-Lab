@@ -26,6 +26,7 @@ public record ExecutionDetail(
         Integer totalTokens,
         int toolCallCount,
         String toolCalls,
+        String provider,
         String modelUsed
 ) {
 }

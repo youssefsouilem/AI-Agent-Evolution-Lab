@@ -17,4 +17,6 @@ public interface AgentRepository extends JpaRepository<Agent, Long> {
     Optional<Agent> findByIdForUpdate(@Param("id") Long id);
 
     List<Agent> findByOwnerId(String ownerId);
+
+    long countByOwnerId(String ownerId);
 }

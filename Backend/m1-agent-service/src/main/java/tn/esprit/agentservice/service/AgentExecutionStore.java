@@ -36,7 +36,9 @@ public class AgentExecutionStore {
             Long agentId,
             Long versionId,
             int versionNumber,
+            String provider,
             String requestedBy,
+            String requestedByRole,
             String input,
             String context,
             Map<String, Object> overrides,
@@ -47,7 +49,9 @@ public class AgentExecutionStore {
         execution.setAgentId(agentId);
         execution.setVersionId(versionId);
         execution.setVersionNumber(versionNumber);
+        execution.setProvider(provider);
         execution.setRequestedBy(requestedBy);
+        execution.setRequestedByRole(requestedByRole);
         execution.setInput(input);
         execution.setContext(context);
         execution.setOverrides(write(overrides));
@@ -98,7 +102,7 @@ public class AgentExecutionStore {
                 totalTokens,
                 toolCallCount,
                 errorCode
-        ));
+        ).withActor(execution.getRequestedBy(), execution.getRequestedByRole()));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -123,7 +127,7 @@ public class AgentExecutionStore {
                     null,
                     execution.getToolCallCount(),
                     "SERVICE_RESTART"
-            ));
+            ).withActor("agent-service", "SYSTEM"));
         }
     }
 

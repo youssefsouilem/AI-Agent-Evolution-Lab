@@ -26,6 +26,9 @@ import AgentEditorPage from './pages/agent-management/AgentEditorPage'
 import AgentTestsPage from './pages/agent-management/AgentTestsPage'
 import AgentHistoryPage from './pages/agent-management/AgentHistoryPage'
 import AdminServicesPage from './pages/agent-management/AdminServicesPage'
+import LlmModelsPage from './pages/agent-management/LlmModelsPage'
+import AdminUsersPage from './pages/agent-management/AdminUsersPage'
+import AdminAuditPage from './pages/agent-management/AdminAuditPage'
 
 export default function App() {
   return (
@@ -47,6 +50,7 @@ export default function App() {
             <Route path="/agents" element={<AgentsListPage />} />
             <Route path="/agents/new" element={<NewAgentPage />} />
             <Route path="/agents/:id" element={<AgentEditorPage />} />
+            <Route path="/agent-models" element={<LlmModelsPage />} />
             <Route path="/agent-tests" element={<AgentTestsPage />} />
             <Route path="/agent-history" element={<AgentHistoryPage />} />
 
@@ -56,6 +60,22 @@ export default function App() {
               element={
                 <RequireRole role="ADMIN">
                   <AdminServicesPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <RequireRole role="ADMIN">
+                  <AdminUsersPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="/admin/audit"
+              element={
+                <RequireRole role="ADMIN">
+                  <AdminAuditPage />
                 </RequireRole>
               }
             />

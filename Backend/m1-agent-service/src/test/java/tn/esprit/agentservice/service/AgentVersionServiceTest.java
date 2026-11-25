@@ -49,6 +49,8 @@ class AgentVersionServiceTest {
                 mock(Validator.class)
         );
         when(agentService.loadOwnedAgentForUpdate(12L, "user-1")).thenReturn(agent);
+        when(agentService.loadOwnedAgentForUpdate(12L, new tn.esprit.agentservice.config.CurrentUser("user-1", false)))
+                .thenReturn(agent);
         when(versionRepository.findMaxVersionNumberByAgentId(12L)).thenReturn(Optional.of(3));
     }
 
