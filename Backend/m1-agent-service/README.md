@@ -17,7 +17,7 @@ Production uses a stateless Keycloak JWT resource server. Configure `KEYCLOAK_IS
 | Variable | Default | Purpose |
 |---|---|---|
 | `OPENAI_API_KEY` | unset | OpenAI; required for OpenAI models |
-| `GEMINI_API_KEY` | unset | Google Gemini OpenAI-compatible endpoint |
+| `GEMINI_API_KEY` | unset | Google Gemini OpenAI-compatible endpoint (catalog default: Gemini 3.6 Flash) |
 | `GROQ_API_KEY` | unset | Groq OpenAI-compatible endpoint |
 | `OPENROUTER_API_KEY` | unset | OpenRouter OpenAI-compatible endpoint |
 | `KEYCLOAK_ISSUER_URI` | `http://localhost:8180/realms/ai-lab` | JWT issuer |
@@ -33,7 +33,7 @@ Other useful settings include `m1.outbox.poll-interval-ms` (2000), `m1.outbox.ma
 
 Set keys only in the IntelliJ run configuration's **Environment variables** field: open **Run → Edit Configurations…**, select the M1 Spring Boot configuration, and enter only the provider keys you use (for example `GROQ_API_KEY=<your key>;GEMINI_API_KEY=<your key>`). Keep real values in your local IDE configuration or secret manager, not in this project, `.env` files, YAML, `requests.http`, or logs. Do not share or commit the run configuration. Remove a key to make that provider show as unavailable.
 
-The non-secret `m1.llm.providers` catalogue is configured in `application.yml`: each provider defines its id, label, enabled flag, key-variable name, OpenAI-compatible base URL, tool support, and model list. `GET /api/llm/models` returns provider ids, availability and public model metadata only. A version stores both provider and model; provide both when creating a version if model ids collide. Omitted providers are inferred only when exactly one available provider offers that model. Supported catalogue ids are `openai`, `gemini`, `groq`, and `openrouter`; this configuration and fake-server tests do not establish that a real provider account, key, model entitlement, or live endpoint works.
+The non-secret `m1.llm.providers` catalogue is configured in `application.yml`: each provider defines its id, label, enabled flag, key-variable name, OpenAI-compatible base URL, tool support, and model list. `GET /api/llm/models` returns provider ids, availability and public model metadata only. A version stores both provider and model; provide both when creating a version if model ids collide. Omitted providers are inferred only when exactly one available provider offers that model. Supported catalogue ids are `openai`, `gemini`, `groq`, and `openrouter`; Gemini defaults to `gemini-3.6-flash`. Saved Gemini 2.0 Flash versions are routed to Gemini 3.6 Flash when the replacement is configured. This configuration and fake-server tests do not establish that a real provider account, key, model entitlement, or live endpoint works.
 
 ## Keycloak token
 
@@ -87,7 +87,7 @@ Collections are plain JSON arrays. History arrays include `X-Total-Count`.
 | `GET /api/executions?agentId=&status=&page=0&size=20&all=` | 200 | 400, 404 |
 | `GET /api/me` | 200 | 401 |
 | `GET /api/llm/models` | 200 | 401 |
-| `POST /api/agents/assist` | 200 | 400, 401, 429, 502 |
+| `POST /api/agents/assist` | 200 | 400, 401, 422, 429, 502 |
 | `GET /api/admin/users` | 200 | 401, 403 |
 | `PUT /api/admin/users/{ownerId}/quota` | 200 | 400, 401, 403 |
 | `POST /api/admin/agents/{id}/archive` | 204 | 400, 401, 403, 404 |
@@ -103,6 +103,8 @@ Deleting an agent deletes its stored execution history.
 ## Execution errors
 
 `AGENT_QUOTA_EXCEEDED` is 403 and includes `limit` and `usage`; `ADMIN_READ_ONLY` is 403; `MODEL_NOT_AVAILABLE` and `MODEL_AMBIGUOUS` are 422. `RATE_LIMITED` is 429; `PROVIDER_NOT_CONFIGURED` and `ASSIST_INVALID_OUTPUT` are 502. Execution errors `PROVIDER_NOT_CONFIGURED`, `PROVIDER_AUTH_FAILED`, `PROVIDER_RATE_LIMITED`, `MODEL_NOT_AVAILABLE`, `PROVIDER_UNAVAILABLE`, `EMPTY_RESPONSE`, `TOOL_SERVICE_UNAVAILABLE` use 502; `TIMEOUT` and `TOOL_TIMEOUT` use 504; `TOOL_LIMIT_EXCEEDED` uses 422; unexpected errors use `INTERNAL_ERROR` (500). Execution failures return a structured `execution` object; unknown token metrics are `null`. Returned/stored error messages are sanitized. The provider check returns only the provider, recommended model, success flag, latency, and classified error code; its audit contains no response body or key.
+
+The agent-assist endpoint accepts optional `provider` and `model` fields alongside `description` and `language`. The editor sends its currently selected provider/model so assistant requests use the same LLM as the agent configuration. If both selection fields are omitted, the service chooses its first available recommended provider/model for backward compatibility.
 
 ## Durable events
 

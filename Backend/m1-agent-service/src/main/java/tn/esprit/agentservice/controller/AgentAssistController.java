@@ -32,6 +32,7 @@ public class AgentAssistController {
     @ApiResponse(responseCode = "200", description = "Proposition à réviser, jamais enregistrée")
     @ApiResponse(responseCode = "400", description = "Description invalide")
     @ApiResponse(responseCode = "401", description = "Authentification requise")
+    @ApiResponse(responseCode = "422", description = "Fournisseur ou modèle indisponible")
     @ApiResponse(responseCode = "429", description = "Quota horaire atteint")
     @ApiResponse(responseCode = "502", description = "Fournisseur absent ou sortie invalide")
     public AgentProposal propose(

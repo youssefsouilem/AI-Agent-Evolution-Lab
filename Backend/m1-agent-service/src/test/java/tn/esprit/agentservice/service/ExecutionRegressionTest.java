@@ -31,7 +31,7 @@ class ExecutionRegressionTest {
         };
 
         AgentExecutionService service = new AgentExecutionService(
-                null, null, null, null, null, null, null, null, null, null, "test"
+                null, null, null, null, null, null, null, null, null, null, null, null
         );
         ToolCallRecorder recorder = new ToolCallRecorder();
         ToolCallback limited = limit(service, callback, 1, new AtomicInteger(), recorder);

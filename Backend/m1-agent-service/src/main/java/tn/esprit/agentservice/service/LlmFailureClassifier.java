@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.stereotype.Component;
 import tn.esprit.agentservice.exception.ProviderNotConfiguredException;
+import tn.esprit.agentservice.exception.ModelNotAvailableException;
 
 import java.io.IOException;
 import java.net.ConnectException;
@@ -19,10 +20,15 @@ public class LlmFailureClassifier {
                 return new Failure("PROVIDER_NOT_CONFIGURED", HttpStatus.BAD_GATEWAY,
                         "Le fournisseur du modèle n'est pas configuré.");
             }
+            if (cause instanceof ModelNotAvailableException exception) {
+                return new Failure("MODEL_NOT_AVAILABLE", HttpStatus.UNPROCESSABLE_ENTITY,
+                        exception.getMessage());
+            }
             int status = status(cause);
             if (status == 401 || status == 403) {
                 return new Failure("PROVIDER_AUTH_FAILED", HttpStatus.BAD_GATEWAY,
-                        "Le fournisseur du modèle a refusé l'authentification.");
+                        "Le fournisseur du modèle a refusé l'authentification. "
+                                + "Vérifiez la configuration de sa clé API.");
             }
             if (status == 404) {
                 return new Failure("MODEL_NOT_AVAILABLE", HttpStatus.BAD_GATEWAY,
@@ -31,6 +37,10 @@ public class LlmFailureClassifier {
             if (status == 429) {
                 return new Failure("PROVIDER_RATE_LIMITED", HttpStatus.BAD_GATEWAY,
                         "Le fournisseur du modèle limite les requêtes.");
+            }
+            if (status == 400) {
+                return new Failure("PROVIDER_REQUEST_REJECTED", HttpStatus.BAD_GATEWAY,
+                        "Le fournisseur a rejeté la requête. Vérifiez le modèle et ses paramètres.");
             }
             if (status >= 500) {
                 return new Failure("PROVIDER_UNAVAILABLE", HttpStatus.BAD_GATEWAY,

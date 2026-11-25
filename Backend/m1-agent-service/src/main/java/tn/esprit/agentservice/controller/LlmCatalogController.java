@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import tn.esprit.agentservice.dto.LlmProviderDto;
-import tn.esprit.agentservice.service.ModelCatalogService;
+import tn.esprit.agentservice.service.ProviderRouter;
 
 import java.util.List;
 
@@ -15,10 +15,10 @@ import java.util.List;
 @RequestMapping("/api/llm/models")
 @Tag(name = "LLM catalogue", description = "Fournisseurs et modèles configurés")
 public class LlmCatalogController {
-    private final ModelCatalogService catalog;
+    private final ProviderRouter router;
 
-    public LlmCatalogController(ModelCatalogService catalog) {
-        this.catalog = catalog;
+    public LlmCatalogController(ProviderRouter router) {
+        this.router = router;
     }
 
     @GetMapping
@@ -26,6 +26,6 @@ public class LlmCatalogController {
     @ApiResponse(responseCode = "200", description = "Catalogue sans clés API")
     @ApiResponse(responseCode = "401", description = "Authentification requise")
     public List<LlmProviderDto> list() {
-        return catalog.list();
+        return router.listProviders();
     }
 }

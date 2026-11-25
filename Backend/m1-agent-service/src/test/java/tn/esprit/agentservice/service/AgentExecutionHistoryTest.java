@@ -56,7 +56,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(properties = {
-        "spring.ai.openai.api-key=test-placeholder",
         "spring.datasource.url=jdbc:h2:mem:execution_history_test;DB_CLOSE_DELAY=-1",
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "m1.demo.seed=false",
@@ -130,7 +129,7 @@ class AgentExecutionHistoryTest {
         var overrides = Map.<String, Object>of("temperature", 0.1);
         var response = executionService.execute(version.getAgent().getId(),
                 new ExecuteRequest(version.getId(), "Analyse.",
-                        new ObjectMapper().readTree("\"mission=5; étape=2\""), overrides),
+                        "mission=5; étape=2", overrides),
                 new CurrentUser("dev-user", false));
 
         assertEquals(5, response.tokensUsed());

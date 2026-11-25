@@ -13,13 +13,23 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import tn.esprit.agentservice.dto.ApiError;
 import tn.esprit.agentservice.dto.ExecutionError;
+import tn.esprit.agentservice.dto.FieldError;
 import tn.esprit.agentservice.dto.StructuredExecutionError;
 import tn.esprit.agentservice.service.ErrorMessageSanitizer;
+import tn.esprit.agentservice.service.LlmFailureClassifier;
+import tn.esprit.agentservice.service.OpenAiCompatibleLlmGateway;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Locale;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    private final LlmFailureClassifier failureClassifier;
+
+    public GlobalExceptionHandler(LlmFailureClassifier failureClassifier) {
+        this.failureClassifier = failureClassifier;
+    }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(
@@ -59,7 +69,8 @@ public class GlobalExceptionHandler {
             ModelNotAvailableException exception,
             HttpServletRequest request
     ) {
-        return error(HttpStatus.UNPROCESSABLE_ENTITY, exception.getMessage(), request, "MODEL_NOT_AVAILABLE", null, null);
+        return error(HttpStatus.UNPROCESSABLE_ENTITY, exception.getMessage(), request, "MODEL_NOT_AVAILABLE",
+                null, null, List.of(new FieldError("model", exception.getMessage())));
     }
 
     @ExceptionHandler(ModelAmbiguousException.class)
@@ -67,7 +78,8 @@ public class GlobalExceptionHandler {
             ModelAmbiguousException exception,
             HttpServletRequest request
     ) {
-        return error(HttpStatus.UNPROCESSABLE_ENTITY, exception.getMessage(), request, "MODEL_AMBIGUOUS", null, null);
+        return error(HttpStatus.UNPROCESSABLE_ENTITY, exception.getMessage(), request, "MODEL_AMBIGUOUS",
+                null, null, List.of(new FieldError("provider", exception.getMessage())));
     }
 
     @ExceptionHandler(ProviderNotConfiguredException.class)
@@ -76,6 +88,27 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         return codedError(HttpStatus.BAD_GATEWAY, exception.getMessage(), "PROVIDER_NOT_CONFIGURED", request);
+    }
+
+    @ExceptionHandler(OpenAiCompatibleLlmGateway.ProviderHttpException.class)
+    public ResponseEntity<ApiError> handleProviderHttpError(
+            OpenAiCompatibleLlmGateway.ProviderHttpException exception,
+            HttpServletRequest request
+    ) {
+        LlmFailureClassifier.Failure failure = failureClassifier.classify(exception);
+        return codedError(failure.status(), failure.message(), failure.code(), request);
+    }
+
+    @ExceptionHandler(org.springframework.web.client.ResourceAccessException.class)
+    public ResponseEntity<ApiError> handleProviderNetworkError(
+            org.springframework.web.client.ResourceAccessException exception,
+            HttpServletRequest request
+    ) {
+        org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class).warn(
+                "Appel au fournisseur impossible pour {} : {}", request.getRequestURI(),
+                ErrorMessageSanitizer.sanitize(String.valueOf(exception.getMessage())));
+        LlmFailureClassifier.Failure failure = failureClassifier.classify(exception);
+        return codedError(failure.status(), failure.message(), failure.code(), request);
     }
 
     @ExceptionHandler(AssistInvalidOutputException.class)
@@ -99,7 +132,9 @@ public class GlobalExceptionHandler {
             InvalidConfigurationException exception,
             HttpServletRequest request
     ) {
-        return error(HttpStatus.UNPROCESSABLE_ENTITY, ErrorMessageSanitizer.sanitize(exception.getMessage()), request);
+        String message = ErrorMessageSanitizer.sanitize(exception.getMessage());
+        return error(HttpStatus.UNPROCESSABLE_ENTITY, message, request, null, null, null,
+                List.of(new FieldError(configurationField(message), message)));
     }
 
     @ExceptionHandler(DownstreamTimeoutException.class)
@@ -126,11 +161,12 @@ public class GlobalExceptionHandler {
             MethodArgumentNotValidException exception,
             HttpServletRequest request
     ) {
-        String message = exception.getBindingResult().getFieldErrors().stream()
-                .map(error -> error.getField() + " " + error.getDefaultMessage())
-                .findFirst()
-                .orElse("Le corps de la requête est invalide.");
-        return error(HttpStatus.BAD_REQUEST, message, request);
+        List<FieldError> fieldErrors = exception.getBindingResult().getFieldErrors().stream()
+                .map(error -> new FieldError(fieldName(error.getField()), validationMessage(error.getCodes())))
+                .toList();
+        String message = fieldErrors.isEmpty() ? "Le corps de la requête est invalide."
+                : fieldErrors.get(0).field() + " " + fieldErrors.get(0).message();
+        return error(HttpStatus.BAD_REQUEST, message, request, null, null, null, fieldErrors);
     }
 
     @ExceptionHandler(ExecutionFailedException.class)
@@ -143,14 +179,28 @@ public class GlobalExceptionHandler {
                 ErrorMessageSanitizer.sanitize(exception.getMessage()), request.getRequestURI(),
                 new ExecutionError(exception.getExecutionId(), exception.getVersionId(), exception.getDurationMs(),
                         exception.getPromptTokens(), exception.getCompletionTokens(), exception.getTotalTokens(),
-                        exception.getToolCallCount())
+                        exception.getToolCallCount()),
+                status.value() == HttpStatus.UNPROCESSABLE_ENTITY.value() && isAgentRequest(request)
+                        ? executionFieldErrors(exception) : null
         ));
     }
 
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class,
             ConstraintViolationException.class, MissingServletRequestParameterException.class})
     public ResponseEntity<ApiError> handleUnreadableRequest(Exception exception, HttpServletRequest request) {
-        return error(HttpStatus.BAD_REQUEST, "Le corps ou les paramètres de la requête sont invalides.", request);
+        List<FieldError> fieldErrors;
+        if (exception instanceof ConstraintViolationException violations) {
+            fieldErrors = violations.getConstraintViolations().stream()
+                    .map(violation -> new FieldError(violation.getPropertyPath().toString(),
+                            "n'a pas une valeur autorisée."))
+                    .toList();
+        } else if (exception instanceof MissingServletRequestParameterException missing) {
+            fieldErrors = List.of(new FieldError(missing.getParameterName(), "est obligatoire."));
+        } else {
+            fieldErrors = List.of(new FieldError("body", "Le corps ou les paramètres sont invalides."));
+        }
+        return error(HttpStatus.BAD_REQUEST, "Le corps ou les paramètres de la requête sont invalides.",
+                request, null, null, null, fieldErrors);
     }
 
     @ExceptionHandler(Exception.class)
@@ -175,6 +225,22 @@ public class GlobalExceptionHandler {
             Integer limit,
             Long usage
     ) {
+        return error(status, message, request, errorCode, limit, usage, null);
+    }
+
+    private ResponseEntity<ApiError> error(
+            HttpStatus status,
+            String message,
+            HttpServletRequest request,
+            String errorCode,
+            Integer limit,
+            Long usage,
+            List<FieldError> fieldErrors
+    ) {
+        if (fieldErrors == null && (status == HttpStatus.BAD_REQUEST || status == HttpStatus.UNPROCESSABLE_ENTITY)
+                && isAgentRequest(request)) {
+            fieldErrors = List.of();
+        }
         ApiError body = new ApiError(
                 Instant.now(),
                 status.value(),
@@ -183,9 +249,45 @@ public class GlobalExceptionHandler {
                 request.getRequestURI(),
                 errorCode,
                 limit,
-                usage
+                usage,
+                fieldErrors
         );
         return ResponseEntity.status(status).body(body);
+    }
+
+    private boolean isAgentRequest(HttpServletRequest request) {
+        return request.getRequestURI().startsWith("/api/agents");
+    }
+
+    private List<FieldError> executionFieldErrors(ExecutionFailedException exception) {
+        if ("MODEL_NOT_AVAILABLE".equals(exception.getErrorCode())) {
+            return List.of(new FieldError("model", ErrorMessageSanitizer.sanitize(exception.getMessage())));
+        }
+        return List.of();
+    }
+
+    private String fieldName(String field) {
+        return "validPayloadShape".equals(field) ? "model" : field;
+    }
+
+    private String validationMessage(String[] codes) {
+        String joined = String.join(" ", codes).toLowerCase(Locale.ROOT);
+        if (joined.contains("notblank")) {
+            return "ne doit pas être vide.";
+        }
+        if (joined.contains("notnull")) {
+            return "est obligatoire.";
+        }
+        return "n'a pas une valeur autorisée.";
+    }
+
+    private String configurationField(String message) {
+        int separator = message.indexOf(' ');
+        String field = separator < 0 ? message : message.substring(0, separator);
+        if (field.matches("[A-Za-z][A-Za-z0-9.]*")) {
+            return field.startsWith("configuration.") ? field : "configuration." + field;
+        }
+        return "configuration";
     }
 
     private ResponseEntity<ApiError> codedError(

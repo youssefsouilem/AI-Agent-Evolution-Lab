@@ -87,7 +87,7 @@ public class AgentVersionService {
                 ? createUiVersion(agent, request, nextVersion)
                 : createM5Version(agent, request, nextVersion);
         if (modelCatalog != null) {
-            version.setProvider(modelCatalog.resolveProvider(version.getProvider(), version.getModel()));
+            version.setProvider(modelCatalog.resolveProviderForVersion(version.getProvider(), version.getModel()));
         }
         AgentVersion savedVersion = versionRepository.save(version);
         publishUpdatedEvent(agentId, savedVersion.getId(), actor);
@@ -190,7 +190,10 @@ public class AgentVersionService {
     }
 
     private AgentVersion createUiVersion(Agent agent, VersionRequest request, int versionNumber) {
-        var violations = validator.validate(request.configuration());
+        ConfigurationDto requestedConfiguration = request.configuration() == null
+                ? new ConfigurationDto(0.7, 1024, "concise", 3, 30, List.of())
+                : request.configuration();
+        var violations = validator.validate(requestedConfiguration);
         if (!violations.isEmpty()) {
             String message = violations.stream()
                     .map(violation -> violation.getPropertyPath() + " " + violation.getMessage())
@@ -208,7 +211,7 @@ public class AgentVersionService {
                 .source(request.source() == null ? "USER" : request.source())
                 .studyId(request.studyId())
                 .active(false)
-                .configuration(versionMapper.toEntity(request.configuration()))
+                .configuration(versionMapper.toEntity(requestedConfiguration))
                 .build();
     }
 

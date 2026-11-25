@@ -6,9 +6,11 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import tn.esprit.agentservice.exception.ModelNotAvailableException;
 import tn.esprit.agentservice.exception.ProviderNotConfiguredException;
 
 import java.time.Duration;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -18,6 +20,9 @@ import java.util.stream.Collectors;
 
 @Component
 public class OpenAiCompatibleLlmGateway implements LlmGateway {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger(OpenAiCompatibleLlmGateway.class);
+
     private final ModelCatalogService catalog;
     private final ObjectMapper objectMapper;
 
@@ -85,7 +90,16 @@ public class OpenAiCompatibleLlmGateway implements LlmGateway {
                     .body(payload)
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (requestMessage, clientResponse) -> {
-                        throw new ProviderHttpException(clientResponse.getStatusCode().value());
+                        int status = clientResponse.getStatusCode().value();
+                        String providerBody = new String(clientResponse.getBody().readAllBytes(),
+                                StandardCharsets.UTF_8);
+                        LOGGER.warn("Fournisseur {} : HTTP {} pour le modèle {} - {}", providerId, status,
+                                request.model(), ErrorMessageSanitizer.sanitize(
+                                        providerBody.length() > 400 ? providerBody.substring(0, 400) : providerBody));
+                        if (status == 404 || status == 400 && namesModel(providerBody, request.model())) {
+                            throw new ModelNotAvailableException(request.model());
+                        }
+                        throw new ProviderHttpException(status);
                     })
                     .body(String.class);
             JsonNode response;
@@ -126,6 +140,11 @@ public class OpenAiCompatibleLlmGateway implements LlmGateway {
     private Integer nullableInteger(JsonNode node, String field) {
         JsonNode value = node == null ? null : node.get(field);
         return value == null || !value.canConvertToInt() ? null : value.intValue();
+    }
+
+    private boolean namesModel(String body, String model) {
+        return model != null && !model.isBlank()
+                && body.toLowerCase(java.util.Locale.ROOT).contains(model.toLowerCase(java.util.Locale.ROOT));
     }
 
     public static final class ProviderHttpException extends RuntimeException {

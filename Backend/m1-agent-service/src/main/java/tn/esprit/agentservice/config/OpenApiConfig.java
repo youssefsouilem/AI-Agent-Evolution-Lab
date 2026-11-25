@@ -12,6 +12,7 @@ import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.media.StringSchema;
+import io.swagger.v3.oas.models.media.ArraySchema;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.tags.Tag;
@@ -47,6 +48,7 @@ public class OpenApiConfig {
     public OpenApiCustomizer standardErrorResponses() {
         return openApi -> {
             openApi.getComponents().addSchemas("ErrorResponse", errorResponseSchema());
+            openApi.getComponents().addSchemas("FieldError", fieldErrorSchema());
             setPropertyMetadata(openApi, "VersionRequest", "provider",
                     "Fournisseur du catalogue; à préciser lorsque le modèle est ambigu.",
                     List.of("openai", "gemini", "groq", "openrouter"));
@@ -67,6 +69,8 @@ public class OpenApiConfig {
                 } else if (method == io.swagger.v3.oas.models.PathItem.HttpMethod.POST
                         && "/api/agents/assist".equals(path)) {
                     setRequestPropertyBounds(openApi, operation, "description", 1, 2000);
+                    setRequestPropertyBounds(openApi, operation, "provider", 1, 100);
+                    setRequestPropertyBounds(openApi, operation, "model", 1, 100);
                 } else if (method == io.swagger.v3.oas.models.PathItem.HttpMethod.DELETE
                         && "/api/admin/agents/{id}".equals(path)) {
                     operation.getParameters().stream()
@@ -182,9 +186,29 @@ public class OpenApiConfig {
                 "path", new StringSchema(),
                 "limit", nullableInteger("int32"),
                 "usage", nullableInteger("int64"),
-                "execution", execution
+                "execution", execution,
+                "fieldErrors", fieldErrorsSchema()
         ));
         schema.setRequired(List.of("timestamp", "status", "error", "message", "path"));
+        return schema;
+    }
+
+    private Schema<?> fieldErrorsSchema() {
+        ArraySchema errors = new ArraySchema();
+        errors.setDescription("Erreurs de validation localisées par champ, présentes sur les erreurs de requête.");
+        errors.setItems(new Schema<>().$ref("#/components/schemas/FieldError"));
+        errors.setNullable(true);
+        return errors;
+    }
+
+    private Schema<?> fieldErrorSchema() {
+        ObjectSchema schema = new ObjectSchema();
+        schema.setDescription("Erreur de validation associée à un champ.");
+        schema.setProperties(java.util.Map.of(
+                "field", new StringSchema(),
+                "message", new StringSchema()
+        ));
+        schema.setRequired(List.of("field", "message"));
         return schema;
     }
 

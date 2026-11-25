@@ -50,8 +50,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "m1.outbox.poll-interval-ms=3600000",
         "m1.llm.strict-model-check=true",
-        "m1.llm.check-max-per-hour=1",
-        "spring.ai.openai.api-key=not-a-real-test-key"
+        "m1.llm.check-max-per-hour=1"
 })
 @AutoConfigureMockMvc
 @ActiveProfiles("dev")
@@ -194,7 +193,8 @@ class MultiProviderApiTest {
                 .andExpect(jsonPath("$[2].supportsTools").value(true))
                 .andExpect(jsonPath("$[2].models[0].id").value("groq-test"))
                 .andExpect(jsonPath("$[1].available").value(false))
-                .andExpect(jsonPath("$[1].reason").value("Clé API absente"))
+                .andExpect(jsonPath("$[1].reason")
+                        .value("Variable TEST_GEMINI_API_KEY absente ou vide dans le processus de M1"))
                 .andReturn().getResponse().getContentAsString();
 
         assertFalse(response.contains(SENTINEL));

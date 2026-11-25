@@ -30,7 +30,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("dev")
 @TestPropertySource(properties = {
-        "OPENAI_API_KEY=missing-key",
+        "OPENAI_API_KEY=",
+        "GEMINI_API_KEY=",
+        "GROQ_API_KEY=",
+        "OPENROUTER_API_KEY=",
         "m1.llm.strict-model-check=true"
 })
 class ModelValidationApiTest {
@@ -46,7 +49,8 @@ class ModelValidationApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].provider").value("openai"))
                 .andExpect(jsonPath("$[0].available").value(false))
-                .andExpect(jsonPath("$[0].reason").value("Clé API absente"))
+                .andExpect(jsonPath("$[0].reason")
+                        .value("Variable OPENAI_API_KEY absente ou vide dans le processus de M1"))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("missing-key"))));
     }

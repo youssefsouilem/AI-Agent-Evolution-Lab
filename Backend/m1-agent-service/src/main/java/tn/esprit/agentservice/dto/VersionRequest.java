@@ -31,12 +31,10 @@ public record VersionRequest(
         this(null, model, systemPrompt, changeLog, configuration, basedOnVersionId, source, studyId, params);
     }
 
-    @AssertTrue(message = "model, systemPrompt et configuration sont requis pour une nouvelle version UI.")
+    @AssertTrue(message = "Le modèle est obligatoire pour créer une version.")
     @JsonIgnore
     public boolean isValidPayloadShape() {
         return basedOnVersionId != null
-                || (model != null && !model.isBlank()
-                && systemPrompt != null && !systemPrompt.isBlank()
-                && configuration != null);
+                || (model != null && !model.isBlank());
     }
 }
