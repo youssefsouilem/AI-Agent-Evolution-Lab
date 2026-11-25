@@ -6,7 +6,7 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
-import { checkExecutionMetrics } from "../../services/monitoringApi";
+import { checkExecutionMetrics } from "../../services/missionMonitoringApi";
 
 const severityLabels = {
   NORMAL: "Normal",

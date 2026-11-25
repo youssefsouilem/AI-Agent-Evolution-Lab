@@ -1,3 +1,4 @@
+import { useAuth } from '../components/common/AuthContext'
 import { Link } from 'react-router-dom'
 import {
   Activity,
@@ -36,8 +37,9 @@ const MODULES = [
     code: 'M3',
     description: 'Orchestrez des workflows multi-agents complexes pour résoudre des tâches collaboratives.',
     icon: Compass,
-    status: 'coming_soon',
-    statusLabel: 'Bientôt',
+    to: '/missions/overview',
+    status: 'available',
+    statusLabel: 'Disponible',
   },
   {
     id: 'benchmark',
@@ -70,6 +72,7 @@ const MODULES = [
 ]
 
 export default function HomePage() {
+  const { isAdmin } = useAuth()
   return (
     <div>
       <div className="m1-breadcrumb">Plateforme <span>/</span> Accueil</div>
@@ -136,7 +139,7 @@ export default function HomePage() {
           )
 
           return isAvailable ? (
-            <Link key={mod.id} to={mod.to} style={{ textDecoration: 'none', color: 'inherit' }}>
+            <Link key={mod.id} to={mod.id === 'missions' && isAdmin ? '/admin' : mod.to} style={{ textDecoration: 'none', color: 'inherit' }}>
               {CardContent}
             </Link>
           ) : (

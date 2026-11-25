@@ -6,6 +6,11 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
+      '/m3-api': {
+        target: 'http://localhost:8083',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/m3-api/, ''),
+      },
       '/api/agents': {
         target: 'http://localhost:8081',
         changeOrigin: true,

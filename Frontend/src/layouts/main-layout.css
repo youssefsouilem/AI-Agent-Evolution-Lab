@@ -465,3 +465,6 @@
     height: auto;
   }
 }
+
+.m6-main.m6-main-missions { max-width: none; padding: 0; }
+.m6-main-missions > .m3-module { min-width: 0; min-height: 100%; }

@@ -1,3 +1,16 @@
+import MissionModule from './layouts/MissionModule'
+import Accueil from './pages/mission-management/user/Accueil'
+import MesMissions from './pages/mission-management/user/MesMissions'
+import NouvelleMission from './pages/mission-management/user/NouvelleMission'
+import MissionStudio from './pages/mission-management/user/MissionStudio'
+import Executions from './pages/mission-management/user/Executions'
+import Historique from './pages/mission-management/user/Historique'
+import ExecutionDetail from './components/mission-management/ExecutionDetail'
+import AdminDashboard from './pages/mission-management/admin/AdminDashboard'
+import SupervisionMissions from './pages/mission-management/admin/SupervisionMissions'
+import ParametresOrchestration from './pages/mission-management/admin/ParametresOrchestration'
+import AutorisationsM3 from './pages/mission-management/admin/AutorisationsM3'
+import InspectionMission from './pages/mission-management/admin/InspectionMission'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import MainLayout from './layouts/MainLayout'
 import { AuthProvider, RequireRole } from './components/common/AuthContext'
@@ -46,6 +59,23 @@ export default function App() {
                 </RequireRole>
               }
             />
+
+            <Route element={<MissionModule />}>
+              <Route path="/missions/overview" element={<Accueil />} />
+              <Route path="/missions" element={<MesMissions />} />
+              <Route path="/missions/new" element={<NouvelleMission />} />
+              <Route path="/studio" element={<MissionStudio />} />
+              <Route path="/studio/:id" element={<MissionStudio />} />
+              <Route path="/executions" element={<Executions />} />
+              <Route path="/executions/:id" element={<ExecutionDetail />} />
+              <Route path="/history" element={<Historique />} />
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin/missions" element={<SupervisionMissions />} />
+              <Route path="/admin/missions/:id" element={<InspectionMission />} />
+              <Route path="/admin/executions" element={<SupervisionMissions key="executions" />} />
+              <Route path="/admin/settings" element={<ParametresOrchestration />} />
+              <Route path="/admin/access" element={<AutorisationsM3 />} />
+            </Route>
 
             {/* Catch-all redirect to /agents */}
             <Route path="*" element={<Navigate to="/agents" replace />} />
