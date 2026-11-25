@@ -745,7 +745,7 @@ export const agentMock = {
     ]
   },
 
-  async assistAgent({ description, language: _language = 'fr' }) {
+  async assistAgent({ description, language: _language = 'fr', provider = 'openai', model = 'gpt-4o-mini' }) {
     await delay(600)
     if (!description || !description.trim()) {
       throw new ApiError(400, 'La description est obligatoire')
@@ -768,7 +768,8 @@ export const agentMock = {
       name: nameProposal,
       description: trimmed,
       systemPrompt: `Tu es un assistant IA spécialisé dans la mission suivante : "${trimmed}".\n\nDirectives :\n- Réponds de manière précise, claire et structurée.\n- Sois professionnel, courtois et synthétique.\n- Respecte scrupuleusement la langue française.`,
-      model: 'gpt-4o-mini',
+      provider,
+      model,
       temperature: 0.7,
       maxTokens: 1024,
       maxTurns: 3,
