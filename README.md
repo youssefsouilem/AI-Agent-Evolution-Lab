@@ -179,3 +179,10 @@ Each service folder contains its own `README.md` (endpoints, database, how to ru
  
 ## Contributing
 See CONTRIBUTING.md
+
+## Shared development folders
+
+- `Backend/ai-services/`: one named folder per Python/AI service; [conventions](Backend/ai-services/README.md).
+- `Infrastructure/`: shared infrastructure plus additive service-specific Compose files; [setup](Infrastructure/README.md).
+- `docs/`: developer guides by service; [index](docs/README.md), [M3 guide](docs/m3/README.md).
+- `Documentation/`: existing reports, presentations and diagrams.

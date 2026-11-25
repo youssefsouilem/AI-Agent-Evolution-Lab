@@ -1,0 +1,212 @@
+[
+  {
+    "id": 1,
+    "name": "Agent Préparateur",
+    "description": "Nettoie et structure les données avant leur analyse.",
+    "status": "ACTIVE",
+    "versions": [
+      {
+        "id": 11,
+        "versionNumber": 1,
+        "model": "SIMULATED",
+        "systemPrompt": "Prépare les données reçues, signale les informations manquantes et fournis une structure claire.",
+        "active": true,
+        "configuration": {
+          "temperature": 0.2,
+          "maxTurns": 5,
+          "timeoutSeconds": 30,
+          "allowedToolIds": []
+        }
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "Agent Analyste de données",
+    "description": "Analyse les données et identifie les tendances importantes.",
+    "status": "ACTIVE",
+    "versions": [
+      {
+        "id": 21,
+        "versionNumber": 1,
+        "model": "SIMULATED",
+        "systemPrompt": "Analyse les données fournies, explique tes conclusions et distingue les faits des hypothèses.",
+        "active": true,
+        "configuration": {
+          "temperature": 0.2,
+          "maxTurns": 5,
+          "timeoutSeconds": 60,
+          "allowedToolIds": []
+        }
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "name": "Agent Rapporteur",
+    "description": "Rédige un rapport à partir des résultats des étapes précédentes.",
+    "status": "ACTIVE",
+    "versions": [
+      {
+        "id": 31,
+        "versionNumber": 1,
+        "model": "SIMULATED",
+        "systemPrompt": "Rédige un rapport structuré avec un résumé, les résultats et les limites de l'analyse.",
+        "active": true,
+        "configuration": {
+          "temperature": 0.4,
+          "maxTurns": 5,
+          "timeoutSeconds": 60,
+          "allowedToolIds": []
+        }
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "name": "Agent Planificateur",
+    "description": "Décompose un objectif en tâches et propose leur ordre.",
+    "status": "ACTIVE",
+    "versions": [
+      {
+        "id": 41,
+        "versionNumber": 1,
+        "model": "SIMULATED",
+        "systemPrompt": "Décompose l'objectif reçu en étapes précises et indique les informations nécessaires pour chacune.",
+        "active": true,
+        "configuration": {
+          "temperature": 0.3,
+          "maxTurns": 5,
+          "timeoutSeconds": 30,
+          "allowedToolIds": []
+        }
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "name": "Agent Recherche",
+    "description": "Identifie les informations pertinentes dans les sources fournies.",
+    "status": "ACTIVE",
+    "versions": [
+      {
+        "id": 51,
+        "versionNumber": 1,
+        "model": "SIMULATED",
+        "systemPrompt": "Recherche les informations utiles dans les sources fournies. Cite leur provenance et signale les informations absentes.",
+        "active": true,
+        "configuration": {
+          "temperature": 0.2,
+          "maxTurns": 6,
+          "timeoutSeconds": 60,
+          "allowedToolIds": []
+        }
+      }
+    ]
+  },
+  {
+    "id": 6,
+    "name": "Agent Analyse documentaire",
+    "description": "Extrait les éléments essentiels des documents fournis.",
+    "status": "ACTIVE",
+    "versions": [
+      {
+        "id": 61,
+        "versionNumber": 1,
+        "model": "SIMULATED",
+        "systemPrompt": "Analyse les documents fournis et extrais leurs idées principales, exigences et points d'attention.",
+        "active": true,
+        "configuration": {
+          "temperature": 0.2,
+          "maxTurns": 5,
+          "timeoutSeconds": 60,
+          "allowedToolIds": []
+        }
+      }
+    ]
+  },
+  {
+    "id": 7,
+    "name": "Agent Synthèse",
+    "description": "Résume plusieurs résultats en une synthèse courte et cohérente.",
+    "status": "ACTIVE",
+    "versions": [
+      {
+        "id": 71,
+        "versionNumber": 1,
+        "model": "SIMULATED",
+        "systemPrompt": "Synthétise les résultats reçus sans ajouter de faits nouveaux. Conserve les désaccords et les incertitudes.",
+        "active": true,
+        "configuration": {
+          "temperature": 0.3,
+          "maxTurns": 4,
+          "timeoutSeconds": 30,
+          "allowedToolIds": []
+        }
+      }
+    ]
+  },
+  {
+    "id": 8,
+    "name": "Agent Vérificateur",
+    "description": "Vérifie la cohérence des résultats et signale les erreurs.",
+    "status": "ACTIVE",
+    "versions": [
+      {
+        "id": 81,
+        "versionNumber": 1,
+        "model": "SIMULATED",
+        "systemPrompt": "Vérifie les résultats à partir des données disponibles. Liste les incohérences et indique si des corrections sont nécessaires.",
+        "active": true,
+        "configuration": {
+          "temperature": 0.1,
+          "maxTurns": 5,
+          "timeoutSeconds": 45,
+          "allowedToolIds": []
+        }
+      }
+    ]
+  },
+  {
+    "id": 9,
+    "name": "Agent Revue de code",
+    "description": "Examine du code fourni pour identifier des défauts et proposer des améliorations.",
+    "status": "ACTIVE",
+    "versions": [
+      {
+        "id": 91,
+        "versionNumber": 1,
+        "model": "SIMULATED",
+        "systemPrompt": "Examine le code fourni, identifie les défauts et explique les corrections proposées. Ne prétends pas avoir exécuté des tests.",
+        "active": true,
+        "configuration": {
+          "temperature": 0.2,
+          "maxTurns": 6,
+          "timeoutSeconds": 60,
+          "allowedToolIds": []
+        }
+      }
+    ]
+  },
+  {
+    "id": 10,
+    "name": "Agent Traduction",
+    "description": "Traduit un texte en conservant son sens et sa terminologie.",
+    "status": "ACTIVE",
+    "versions": [
+      {
+        "id": 101,
+        "versionNumber": 1,
+        "model": "SIMULATED",
+        "systemPrompt": "Traduis le texte dans la langue demandée. Conserve le sens, la structure et les termes techniques.",
+        "active": true,
+        "configuration": {
+          "temperature": 0.2,
+          "maxTurns": 4,
+          "timeoutSeconds": 45,
+          "allowedToolIds": []
+        }
+      }
+    ]
+  }
+]
