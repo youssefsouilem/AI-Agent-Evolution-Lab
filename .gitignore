@@ -38,6 +38,8 @@ application-local.properties
 *.mv.db
 *.trace.db
 data/
+!Frontend/src/data/
+!Frontend/src/data/*.js
 mongo-data/
 
 # OS
