@@ -122,6 +122,7 @@ export default function AgentEditorPage() {
 
   // Configuration state for version creation / draft
   const [configModel, setConfigModel] = useState('gpt-4o-mini')
+  const [configProvider, setConfigProvider] = useState(null)
   const [configPrompt, setConfigPrompt] = useState('')
   const [configParams, setConfigParams] = useState({
     temperature: 0.7,
@@ -200,6 +201,17 @@ export default function AgentEditorPage() {
       .catch(() => {})
   }, [])
 
+  useEffect(() => {
+    if (configModel !== 'gemini-2.0-flash'
+      || (configProvider && configProvider !== 'gemini')) return
+    const gemini = llmProviders.find((provider) => (provider.id || provider.provider) === 'gemini')
+    const replacement = gemini?.models?.find((model) => model.id === 'gemini-3.6-flash')
+    if (replacement?.id) {
+      setConfigModel(replacement.id)
+      setConfigProvider('gemini')
+    }
+  }, [configModel, configProvider, llmProviders])
+
   // Load tools catalogue
   useEffect(() => {
     listTools()
@@ -238,6 +250,7 @@ export default function AgentEditorPage() {
         setTestVersionId(String(activeVer.id))
         const cfg = activeVer.configuration || {}
         setConfigModel(activeVer.model || 'gpt-4o-mini')
+        setConfigProvider(activeVer.provider || null)
         setConfigPrompt(activeVer.systemPrompt || '')
         setConfigParams({
           temperature: cfg.temperature ?? 0.7,
@@ -344,6 +357,7 @@ export default function AgentEditorPage() {
     setSaving(true)
     try {
       const newVer = await createVersion(id, {
+        provider: selectedModelProvider,
         model: configModel,
         systemPrompt: configPrompt,
         configuration: {
@@ -380,6 +394,7 @@ export default function AgentEditorPage() {
   // Duplicate Version into editor configuration
   const handleDuplicateVersionToConfig = (ver) => {
     setConfigModel(ver.model || 'gpt-4o-mini')
+    setConfigProvider(ver.provider || null)
     setConfigPrompt(ver.systemPrompt || '')
     const cfg = ver.configuration || {}
     setConfigParams({
@@ -455,6 +470,18 @@ export default function AgentEditorPage() {
   const handleSendAssist = async (e) => {
     e.preventDefault()
     if (!assistInput.trim() || assistLoading || isReadOnly) return
+    if (!selectedModel?.available) {
+      setAssistMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          text: selectedModel
+            ? `${selectedModel.providerLabel} ne peut pas utiliser ce modèle actuellement. Vérifiez la configuration du fournisseur.`
+            : 'Le modèle sélectionné n’est pas disponible dans le catalogue du serveur.',
+        },
+      ])
+      return
+    }
 
     const userText = assistInput.trim()
     setAssistInput('')
@@ -463,7 +490,12 @@ export default function AgentEditorPage() {
     setAssistError(null)
 
     try {
-      const proposal = await assistAgent({ description: userText, language: 'fr' })
+      const proposal = await assistAgent({
+        description: userText,
+        language: 'fr',
+        provider: selectedModelProvider,
+        model: configModel,
+      })
       setPendingProposal(proposal)
       setAssistMessages((prev) => [
         ...prev,
@@ -496,6 +528,7 @@ export default function AgentEditorPage() {
     }
     if (proposal.description) setDescription(proposal.description)
     if (proposal.systemPrompt) setConfigPrompt(proposal.systemPrompt)
+    if (proposal.provider) setConfigProvider(proposal.provider)
     if (proposal.model) setConfigModel(proposal.model)
     setConfigParams((prev) => ({
       ...prev,
@@ -532,8 +565,7 @@ export default function AgentEditorPage() {
     }
 
     try {
-      const res = await executeAgent({
-        agentId: id,
+      const res = await executeAgent(id, {
         versionId: testVersionId ? parseInt(testVersionId, 10) : undefined,
         input: inputMsg,
         context: parsedContext,
@@ -572,11 +604,21 @@ export default function AgentEditorPage() {
     const list = []
     llmProviders.forEach((prov) => {
       ;(prov.models || []).forEach((m) => {
-        list.push({ ...m, provider: prov.label || prov.provider, available: prov.available })
+        list.push({
+          ...m,
+          provider: prov.id || prov.provider,
+          providerLabel: prov.label || prov.provider,
+          available: prov.available,
+        })
       })
     })
     return list
   }, [llmProviders])
+  const selectedModel = allModels.find(
+    (model) => model.id === configModel && model.provider === configProvider
+  ) || allModels.find((model) => model.id === configModel && model.available)
+    || allModels.find((model) => model.id === configModel)
+  const selectedModelProvider = selectedModel?.provider || null
 
   const filteredModels = useMemo(() => {
     const q = modelSearch.toLowerCase()
@@ -860,17 +902,20 @@ export default function AgentEditorPage() {
                     ) : (
                       filteredModels.map((m) => (
                         <button
-                          key={m.id}
+                          key={`${m.provider}:${m.id}`}
                           type="button"
-                          className={`m1-model-item ${configModel === m.id ? 'selected' : ''}`}
+                          disabled={!m.available}
+                          title={m.available ? m.providerLabel : m.reason || 'Fournisseur non configuré'}
+                          className={`m1-model-item ${configModel === m.id && selectedModelProvider === m.provider ? 'selected' : ''}`}
                           onClick={() => {
                             setConfigModel(m.id)
+                            setConfigProvider(m.provider)
                             setModelDropdownOpen(false)
                           }}
                         >
                           <div>
                             <strong>{m.label || m.id}</strong>
-                            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{m.provider}</div>
+                            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{m.providerLabel}</div>
                           </div>
                           {m.recommended && (
                             <span
@@ -885,6 +930,9 @@ export default function AgentEditorPage() {
                             >
                               ★
                             </span>
+                          )}
+                          {!m.available && (
+                              <span style={{ fontSize: 10, color: 'var(--muted)' }}>Indisponible</span>
                           )}
                         </button>
                       ))
@@ -1453,6 +1501,13 @@ export default function AgentEditorPage() {
                 </div>
 
                 <form onSubmit={handleSendAssist} className="m1-assist-input-bar">
+                  {!selectedModel?.available && (
+                    <div style={{ flexBasis: '100%', color: 'var(--muted)', fontSize: 11 }}>
+                      {selectedModel
+                        ? selectedModel.reason || `Le fournisseur ${selectedModel.providerLabel} est indisponible.`
+                        : 'Le modèle sélectionné n’est pas disponible dans le catalogue du serveur.'}
+                    </div>
+                  )}
                   <input
                     type="text"
                     className="m1-assist-input"
@@ -1464,7 +1519,7 @@ export default function AgentEditorPage() {
                   <button
                     type="submit"
                     className="m1-primary"
-                    disabled={!assistInput.trim() || assistLoading || isReadOnly}
+                    disabled={!assistInput.trim() || assistLoading || isReadOnly || !selectedModel?.available}
                     style={{ padding: '8px 12px' }}
                   >
                     <Send size={14} />

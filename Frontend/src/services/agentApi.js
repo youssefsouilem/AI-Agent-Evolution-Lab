@@ -400,14 +400,14 @@ export async function listLlmModels() {
   return request('/api/llm/models')
 }
 
-export async function assistAgent({ description, language = 'fr' }) {
+export async function assistAgent({ description, language = 'fr', provider, model }) {
   if (USE_MOCK) {
     const mock = await getMock()
-    return mock.assistAgent({ description, language })
+    return mock.assistAgent({ description, language, provider, model })
   }
   return request('/api/agents/assist', {
     method: 'POST',
-    body: JSON.stringify({ description, language }),
+    body: JSON.stringify({ description, language, provider, model }),
   })
 }
 

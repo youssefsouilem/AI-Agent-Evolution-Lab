@@ -20,7 +20,10 @@
     "errorCode": { "type": "string" },
     "event": { "type": "string" },
     "source": { "type": "string" },
-    "timestamp": { "type": "string", "format": "date-time" }
+    "timestamp": { "type": "string", "format": "date-time" },
+    "actorId": { "type": ["string", "null"] },
+    "actorRole": { "type": ["string", "null"] },
+    "reason": { "type": ["string", "null"] }
   },
   "additionalProperties": false
 }
