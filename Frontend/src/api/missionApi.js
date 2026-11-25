@@ -1,5 +1,5 @@
 import { authorizedFetch } from '../services/authToken.js';
-const API_URL = import.meta.env?.VITE_API_URL || 'http://localhost:8083';
+const API_URL = import.meta.env?.VITE_M3_API_URL || (import.meta.env.DEV ? '/m3-api' : 'http://localhost:8083');
 
 async function request(path, options = {}) {
   const response = await authorizedFetch(`${API_URL}${path}`, {

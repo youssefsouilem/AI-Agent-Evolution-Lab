@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { getAgents } from '../services/agentApi';
+import { getAgents } from '../services/missionAgentApi';
 const Context = createContext(null);
 export function AgentCatalogProvider({ children }) {
   const [agents, setAgents] = useState([]);
